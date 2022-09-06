@@ -130,7 +130,7 @@ def train_and_evaluate(
         state, train_loss, train_accuracy = train_epoch(
             state, train_ds, cfg.batch_size, input_rng
         )
-        save_checkpoint(state=state, epoch=epoch, output_dir=work_dir)
+        save_checkpoint(target=state, epoch=epoch, output_dir=work_dir)
         _, test_loss, test_accuracy = apply_model(
             state, test_ds["image"], test_ds["label"], False, rng
         )
