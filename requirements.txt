@@ -5,3 +5,4 @@ optax==0.1.3
 tensorflow
 torch
 clu==0.0.7
+tensorstore==0.1.23
