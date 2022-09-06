@@ -1,35 +1,29 @@
 import jax.numpy as jnp
 import flax.linen as nn
 from typing import Union, Iterable
-
-class AdaptiveAveragePool1D(nn.Module):
-    output_size: Union[int, Iterable[int]]
-
-    @nn.compact
-    def __call__(self, x):
-        output_size = (
-            (self.output_size,)
-            if isinstance(self.output_size, int)
-            else self.output_size
-        )
-        split = jnp.split(x, output_size[0], axis=1)
-        stack = jnp.stack(split, axis=1)
-        return jnp.mean(stack, axis=2)
+from .helpers import to_2tuple
 
 
 class AdaptiveAveragePool2D(nn.Module):
-    output_size: Union[Iterable, int]
+    output_size: Union[int, Iterable[int]]
 
     @nn.compact
-    def __call__(self, x):
-        if isinstance(self.output_size, (list, tuple)):
-            h_bins = self.output_size[0]
-            w_bins = self.output_size[1]
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        assert (
+            x.ndim > 2 and x.ndim < 5
+        ), f"Expected input to have 3 (or 4 with batch) but recieved {x.ndim} dims."
+        if x.ndim == 4:
+            input_size = x.shape[1], x.shape[2]
         else:
-            h_bins = w_bins = self.output_size
+            input_size = x.shape[0], x.shape[1]
+        if not isinstance(self.output_size, Iterable):
+            output_size = to_2tuple(self.output_size)
+        else:
+            output_size = self.output_size
 
-        split_cols = jnp.split(x, h_bins, axis=1)
-        split_cols = jnp.stack(split_cols, axis=1)
-        split_rows = jnp.split(split_cols, w_bins, axis=3)
-        split_rows = jnp.stack(split_rows, axis=3)
-        return jnp.mean(split_rows, axis=[2, 4])
+        strides = tuple(e1 // e2 for e1, e2 in zip(input_size, output_size))
+        factor = tuple((e1 - 1) * e2 for e1, e2 in zip(output_size, strides))
+        window_shape = tuple(e1 - e2 for e1, e2 in zip(input_size, factor))
+        x = nn.avg_pool(x, window_shape=window_shape, strides=strides, padding="VALID")
+
+        return x
