@@ -10,6 +10,7 @@ import numpy as np
 from termcolor import colored
 from clu import parameter_overview
 
+
 class FlattenAndCast(object):
     """
     Returns contigious flattened array to make Numpy arrays.
@@ -37,7 +38,9 @@ def numpy_collate(batch):
         return np.array(batch)
 
 
-def save_checkpoint(target: train_state.TrainState, epoch: int, output_dir: Union[os.PathLike, str]):
+def save_checkpoint(
+    target: train_state.TrainState, epoch: int, output_dir: Union[os.PathLike, str]
+):
     """
     Args:
         target: TrainState to save as a checkpoint
@@ -47,7 +50,7 @@ def save_checkpoint(target: train_state.TrainState, epoch: int, output_dir: Unio
         None
     """
     save_dir = checkpoints.save_checkpoint(
-        ckpt_dir=str(output_dir), target=target, step=epoch
+        ckpt_dir=str(output_dir), target=target, step=epoch, overwrite=True
     )
     print(colored(f"Saving checkpoint at {save_dir}", "magenta"))
 
@@ -64,6 +67,7 @@ def restore_checkpoint(checkpoint_dir: Union[os.PathLike, str]):
     )
     print(colored(f"Restoring state from {checkpoint_dir}", "magenta"))
     return restored_state.params
+
 
 def tabulate(model: nn.Module, input_shape: Iterable[int] = (1, 32, 32, 3)):
     key = random.PRNGKey(0)
