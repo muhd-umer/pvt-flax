@@ -13,6 +13,7 @@ from layers import (
 )
 from utils import restore_checkpoint
 from flax.core import freeze, unfreeze
+import os.path as osp
 
 
 class Block(nn.Module):
@@ -207,6 +208,9 @@ def create_PVT_V2(
     model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
 
     if checkpoint:
+        assert osp.exists(
+            checkpoint
+        ), f"Checkpoint directory does not exist. Recheck input arguments."
         pretrained_weights = restore_checkpoint(checkpoint_dir=checkpoint)
         params = model.init(
             {"params": key, "dropout": drop}, jnp.ones(in_shape), trainable=True

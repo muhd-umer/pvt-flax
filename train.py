@@ -172,7 +172,7 @@ def train_and_evaluate(
     summary_writer.hparams(dict(cfg))
     rng = random.PRNGKey(0)
 
-    print("/n")
+    print("\n")
 
     for epoch in range(0, cfg.num_epochs):
         rng, init_rng = random.split(rng)
