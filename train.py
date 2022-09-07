@@ -120,7 +120,6 @@ def create_train_state(
     image_size: Iterable[int],
     cfg: ml_collections.ConfigDict,
     learning_rate_fn,
-    pretrained=False,
     checkpoint=None,
 ):
     """
@@ -140,7 +139,6 @@ def create_train_state(
         init_rng,
         num_classes=num_classes,
         in_shape=image_size,
-        pretrained=pretrained,
         checkpoint=checkpoint,
     )
     tx = optax.adamw(learning_rate=learning_rate_fn)
@@ -300,6 +298,7 @@ if __name__ == "__main__":
             ),
             cfg=cfg,
             learning_rate_fn=learning_rate_fn,
+            checkpoint=args.checkpoint_dir,
         )
 
         train_and_evaluate(
@@ -312,6 +311,9 @@ if __name__ == "__main__":
         )
 
     else:
+        assert (
+            args.checkpoint_dir
+        ), f"Checkpoint directory must be specified if evaluating."
         rng, init_rng = random.split(random.PRNGKey(0))
 
         state = create_train_state(
@@ -326,7 +328,6 @@ if __name__ == "__main__":
             ),
             cfg=cfg,
             learning_rate_fn=learning_rate_fn,
-            pretrained=True,
             checkpoint=args.checkpoint_dir,
         )
 
@@ -345,7 +346,4 @@ if __name__ == "__main__":
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
         print(colored(f"[{time_string}] Evaluation:", "cyan"))
-        print(
-            f"{' '*10} Accuracy on Test Set: %.2f"
-            % (test_accuracy * 100)
-        )
+        print(f"{' '*10} Accuracy on Test Set: %.2f" % (test_accuracy * 100))

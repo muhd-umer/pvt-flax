@@ -76,7 +76,7 @@ def restore_checkpoint(checkpoint_dir: Union[os.PathLike, str]):
     restored_state = checkpoints.restore_checkpoint(
         ckpt_dir=checkpoint_dir, target=train_state.TrainState
     )
-    print(colored(f"Restoring state from {checkpoint_dir}", "magenta"))
+    print(colored(f"Restoring state from {checkpoint_dir}", "green"))
     return restored_state["params"]
 
 def tabulate(model: nn.Module, input_shape: Iterable[int] = (1, 32, 32, 3)):
