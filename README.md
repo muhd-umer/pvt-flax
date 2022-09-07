@@ -38,7 +38,7 @@ python run.py --model-name "PVT_V2_B0" \
 ```
 
 ## Acknowledgements
-We acknowledge the excellent implementation of PVT in [MMDetection](https://github.com/open-mmlab/mmdetection), [PyTorch Image Models](https://github.com/rwightman/pytorch-image-models) and the [official implementation](https://github.com/whai362/PVT). I repeatedly referred to these implementations as a reference.
+We acknowledge the excellent implementation of PVT in [MMDetection](https://github.com/open-mmlab/mmdetection), [PyTorch Image Models](https://github.com/rwightman/pytorch-image-models) and the [official implementation](https://github.com/whai362/PVT). I referred to these implementations as a source of reference.
 
 ## Citing PVT
 - **PVT v1**
