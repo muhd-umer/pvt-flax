@@ -45,7 +45,7 @@ class TrainState(train_state.TrainState):
 
 
 def learning_rate_schedule(
-    config: ml_collections.ConfigDict, base_learning_rate: float, steps_per_epoch: int
+    cfg: ml_collections.ConfigDict, base_learning_rate: float, steps_per_epoch: int
 ):
     """
     Create learning rate schedule.
@@ -53,15 +53,15 @@ def learning_rate_schedule(
     warmup_fn = optax.linear_schedule(
         init_value=0.0,
         end_value=base_learning_rate,
-        transition_steps=config.warmup_epochs * steps_per_epoch,
+        transition_steps=cfg.warmup_epochs * steps_per_epoch,
     )
-    cosine_epochs = max(config.num_epochs - config.warmup_epochs, 1)
+    cosine_epochs = max(cfg.num_epochs - cfg.warmup_epochs, 1)
     cosine_fn = optax.cosine_decay_schedule(
         init_value=base_learning_rate, decay_steps=cosine_epochs * steps_per_epoch
     )
     schedule_fn = optax.join_schedules(
         schedules=[warmup_fn, cosine_fn],
-        boundaries=[config.warmup_epochs * steps_per_epoch],
+        boundaries=[cfg.warmup_epochs * steps_per_epoch],
     )
     return schedule_fn
 
@@ -275,14 +275,14 @@ if __name__ == "__main__":
         split_keys=cfg.split_keys,
     )
 
-    steps_per_epoch = len(info.splits["train"].num_examples)
+    steps_per_epoch = info.splits["train"].num_examples
     if cfg.num_train_steps == -1:
         num_steps = int(steps_per_epoch * cfg.num_epochs)
     else:
         num_steps = cfg.num_train_steps
 
     if cfg.steps_per_eval == -1:
-        num_validation_examples = len(info.splits["test"].num_examples)
+        num_validation_examples = info.splits["test"].num_examples
         steps_per_eval = num_validation_examples // cfg.batch_size
     else:
         steps_per_eval = cfg.steps_per_eval
