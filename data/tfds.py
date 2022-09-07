@@ -1,8 +1,9 @@
 import jax.numpy as jnp
 import tensorflow_datasets as tfds
+import tensorflow as tf
 
 
-def get_jnp_dataset(name: str):
+def get_jnp_dataset(name: str, batch_size: int):
     """
     Load "name" train and test data into memory;
     General Feature Structure:
@@ -20,10 +21,13 @@ def get_jnp_dataset(name: str):
     ds_builder = tfds.builder(name=name)
     ds_builder.download_and_prepare()
 
-    train_ds = tfds.as_numpy(ds_builder.as_dataset(split="train", batch_size=-1))
-    test_ds = tfds.as_numpy(ds_builder.as_dataset(split="test", batch_size=-1))
+    train_ds = ds_builder.as_dataset(split="train", batch_size=batch_size)
+    test_ds = ds_builder.as_dataset(split="test", batch_size=-1)
 
-    train_ds["image"] = jnp.float32(train_ds["image"]) / 255.0
-    test_ds["image"] = jnp.float32(test_ds["image"]) / 255.0
+    train_ds = tfds.as_numpy(train_ds)
+    test_ds = tfds.as_numpy(test_ds)
+
+    # train_ds["image"] = jnp.float32(train_ds["image"]) / 255.0
+    # test_ds["image"] = jnp.float32(test_ds["image"]) / 255.0
 
     return train_ds, test_ds

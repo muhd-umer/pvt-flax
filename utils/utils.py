@@ -22,6 +22,17 @@ class FlattenAndCast(object):
         return np.ravel(np.array(pic, dtype=jnp.float32))
 
 
+class ReshapeAndCast(object):
+    """
+    Returns contigious flattened array to make Numpy arrays.
+    Reference:
+    https://jax.readthedocs.io/en/latest/notebooks/Neural_Network_and_Data_Loading.html
+    """
+
+    def __call__(self, pic):
+        return np.reshape(np.array(pic, dtype=jnp.float32), -1)
+
+
 def numpy_collate(batch):
     """
     Collate function to use PyTorch datalaoders

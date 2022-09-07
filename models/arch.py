@@ -153,14 +153,14 @@ class PyramidVisionTransformerV2(nn.Module):
         sr_ratios = to_ntuple(num_stages)(self.sr_ratios)
         assert (len(self.embed_dims)) == num_stages
 
-        assert (
-            x.shape[-1] == 3
-        ), f"Expected an RGB image with 3 channels but got {x.shape[-1]} channels instead."
+        # assert (
+        #     x.shape[-1] == 3
+        # ), f"Expected an RGB image with 3 channels but got {x.shape[-1]} channels instead."
         patch_embed = OverlapPatchEmbed(
             patch_size=7, strides=4, embed_dim=self.embed_dims[0]
         )
 
-        dpr = [x.item() for x in np.linspace(0, 0., sum(self.depths))]
+        dpr = [x.item() for x in np.linspace(0, 0.0, sum(self.depths))]
         cur = 0
 
         x, feat_size = patch_embed(x)
@@ -196,6 +196,7 @@ class PyramidVisionTransformerV2(nn.Module):
 
 def create_PVT_V2(
     model,
+    rng,
     attach_head=True,
     num_classes=1000,
     drop_rate=0.0,
@@ -203,7 +204,7 @@ def create_PVT_V2(
     checkpoint=None,
     in_shape=(1, 32, 32, 3),
 ):
-    key, drop = random.split(random.PRNGKey(0), 2)
+    key, drop = random.split(rng)
     model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
 
     if pretrained:
