@@ -1,9 +1,18 @@
+from typing import Iterable
 import jax.numpy as jnp
 import tensorflow_datasets as tfds
 import tensorflow as tf
 
 
-def get_jnp_dataset(name: str, batch_size: int):
+def transform_images(row, shape):
+    x_train = tf.image.resize_with_pad(row["image"], shape[0], shape[1])
+
+    return {"image": x_train, "label": row["label"]}
+
+
+def get_jnp_dataset(
+    name: str, batch_size: int, img_shape: Iterable[int], split_keys: Iterable[str]
+):
     """
     Load "name" train and test data into memory;
     General Feature Structure:
@@ -18,12 +27,18 @@ def get_jnp_dataset(name: str, batch_size: int):
     Returns:
         Train and Test data with features_dict.
     """
-    train_ds = tfds.load(name, split="train").batch(batch_size).cache()
-    test_ds = tfds.load(name, split="test").batch(batch_size).cache()
-    train_ds = tfds.as_numpy(train_ds)
-    test_ds = tfds.as_numpy(test_ds)
+    dataset_builder = tfds.builder(name)
+    dataset_builder.download_and_prepare()
 
-    # train_ds["image"] = jnp.float32(train_ds["image"]) / 255.0
-    # test_ds["image"] = jnp.float32(test_ds["image"]) / 255.0
+    train_data = dataset_builder.as_dataset(split=split_keys[0])
+    train_data = train_data.map(lambda row: transform_images(row, img_shape))
+    train_data = train_data.repeat().cache().batch(batch_size)
+
+    test_data = dataset_builder.as_dataset(split=split_keys[1])
+    test_data = test_data.map(lambda row: transform_images(row, img_shape))
+    test_data = test_data.repeat().cache().batch(batch_size)
+
+    train_ds = tfds.as_numpy(train_data)
+    test_ds = tfds.as_numpy(test_data)
 
     return train_ds, test_ds
