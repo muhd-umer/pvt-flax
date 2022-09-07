@@ -103,7 +103,7 @@ def step(state, inputs, labels, num_classes, trainable, rng):
     return loss, accuracy
 
 
-# step = jax.jit(step, static_argnums=(2, 3))
+step = jax.jit(step, static_argnums=(3, 4))
 
 
 def create_train_state(
@@ -176,6 +176,7 @@ def train_and_evaluate(
         for batch in train_ds:
             inputs, labels = batch["image"], batch["label"]
             inputs = jnp.float32(inputs) / 255.0
+            labels = jnp.float32(labels)
 
             state, train_loss_batch, train_accuracy_batch = step(
                 state, inputs, labels, int(num_classes), True, init_rng
@@ -186,6 +187,7 @@ def train_and_evaluate(
         for batch in test_ds:
             inputs, labels = batch["image"], batch["label"]
             inputs = jnp.float32(inputs) / 255.0
+            labels = jnp.float32(labels)
 
             test_loss_batch, test_accuracy_batch = step(
                 state, inputs, labels, int(num_classes), False, init_rng
