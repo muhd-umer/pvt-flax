@@ -13,7 +13,8 @@ from jax import random
 import jax.numpy as jnp
 import optax
 from flax.metrics import tensorboard
-from flax.training import train_state, dynamic_scale
+from flax.training import train_state
+from flax.training import dynamic_scale as dynamic_scale_lib
 import tensorflow as tf
 from clu import platform
 
@@ -40,7 +41,7 @@ model_dict = {
 
 
 class TrainState(train_state.TrainState):
-    dynamic_scale: dynamic_scale.DynamicScale
+    dynamic_scale: dynamic_scale_lib.DynamicScale
 
 
 def learning_rate_schedule(
@@ -123,7 +124,7 @@ def create_train_state(
     dynamic_scale = None
     platform = jax.local_devices()[0].platform
     if cfg.half_precision and platform == "gpu":
-        dynamic_scale = dynamic_scale.DynamicScale()
+        dynamic_scale = dynamic_scale_lib.DynamicScale()
     else:
         dynamic_scale = None
 
