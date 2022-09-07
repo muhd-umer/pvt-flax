@@ -33,5 +33,6 @@ def get_config():
     config.dataset_name = "cifar10"
     config.data_shape = [32, 32, 3]
     config.num_classes = 10
+    config.split_keys = ["train", "test"]
 
     return config

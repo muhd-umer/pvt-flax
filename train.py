@@ -173,7 +173,7 @@ def train_and_evaluate(
 
         train_loss, train_accuracy = list(), list()
         test_loss, test_accuracy = list(), list()
-        
+
         for batch in train_ds:
             inputs, labels = batch["image"], batch["label"]
             inputs = jnp.float32(inputs) / 255.0
@@ -269,7 +269,10 @@ if __name__ == "__main__":
     )
 
     train_ds, test_ds = get_jnp_dataset(
-        name=cfg.dataset_name, batch_size=cfg.batch_size
+        name=cfg.dataset_name,
+        batch_size=cfg.batch_size,
+        img_shape=[cfg.data_shape[0], cfg.data_shape[1]],
+        split_keys=cfg.split_keys,
     )
 
     steps_per_epoch = len(train_ds)
