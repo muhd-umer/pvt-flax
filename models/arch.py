@@ -1,3 +1,27 @@
+"""
+MIT License:
+Copyright (c) 2022 Muhammad Umer
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+PyramidVisionTransformer V2 Implementation in JAX/Flax. Note that this
+implementation currently lacks proper comments and as such, may not be  the
+best place to get familiar with either JAX/Flax or the paper itself.
+
+For a better reference:
+Refer to:
+https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/pvt_v2.py
+"""
+
+
 from functools import partial
 import jax.numpy as jnp
 import numpy as np
