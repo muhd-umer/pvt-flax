@@ -63,7 +63,7 @@ def save_checkpoint(
     save_dir = checkpoints.save_checkpoint(
         ckpt_dir=str(output_dir), target=target, step=epoch, overwrite=True
     )
-    print(colored(f"Saving checkpoint at {save_dir}", "magenta"))
+    print(colored(f"{' '*10} Saving checkpoint at {save_dir}", "magenta"))
 
 
 def restore_checkpoint(checkpoint_dir: Union[os.PathLike, str]):

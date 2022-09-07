@@ -208,9 +208,7 @@ def create_PVT_V2(
     model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
 
     if pretrained:
-        assert (
-            not checkpoint
-        ), f"Checkpoint directory must be specified if pretrained=True."
+        assert checkpoint, f"Checkpoint directory must be specified if pretrained=True."
         pretrained_weights = restore_checkpoint(checkpoint_dir=checkpoint)
         params = model.init(
             {"params": key, "dropout": drop}, jnp.ones(in_shape), trainable=True

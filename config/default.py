@@ -29,4 +29,9 @@ def get_config():
     config.num_train_steps = -1
     config.steps_per_eval = -1
 
+    # configure input dataset keys
+    config.dataset_name = "mnist"
+    config.data_shape = [28, 28, 1]
+    config.num_classes = 10
+
     return config

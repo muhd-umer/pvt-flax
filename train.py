@@ -7,6 +7,7 @@ import numpy as np
 import ml_collections
 from utils import save_checkpoint
 from termcolor import colored
+import time
 
 import jax
 from jax import lax
@@ -119,6 +120,8 @@ def create_train_state(
     image_size: Iterable[int],
     cfg: ml_collections.ConfigDict,
     learning_rate_fn,
+    pretrained=False,
+    checkpoint=None,
 ):
     """
     Creates initial `TrainState`. For more information
@@ -133,7 +136,12 @@ def create_train_state(
         dynamic_scale = None
 
     model, params = create_PVT_V2(
-        model_dict[model_name], init_rng, num_classes=num_classes, in_shape=image_size
+        model_dict[model_name],
+        init_rng,
+        num_classes=num_classes,
+        in_shape=image_size,
+        pretrained=pretrained,
+        checkpoint=checkpoint,
     )
     tx = optax.adamw(learning_rate=learning_rate_fn)
     state = TrainState.create(
@@ -169,19 +177,35 @@ def train_and_evaluate(
     for epoch in range(0, cfg.num_epochs):
         rng, init_rng = random.split(rng)
 
+        train_loss, train_accuracy = list(), list()
+        test_loss, test_accuracy = list(), list()
+
         for batch in train_ds:
-            state, train_loss, train_accuracy = step(
+            state, train_loss_batch, train_accuracy_batch = step(
                 state, batch, int(num_classes), True, init_rng
             )
-            save_checkpoint(target=state, epoch=epoch, output_dir=work_dir)
+            train_loss.append(train_loss_batch)
+            train_accuracy.append(train_accuracy_batch)
 
-        test_loss, test_accuracy = step(
-            state, train_ds, int(num_classes), False, init_rng
-        )
+        save_checkpoint(target=state, epoch=epoch, output_dir=work_dir)
 
-        print(colored(f"Epoch: {epoch}", "cyan"))
+        for batch in test_ds:
+            test_loss_batch, test_accuracy_batch = step(
+                state, batch, int(num_classes), False, init_rng
+            )
+            test_loss.append(test_loss_batch)
+            test_accuracy.append(test_accuracy_batch)
+
+        train_loss = sum(train_loss) / len(train_loss)
+        train_accuracy = sum(train_accuracy) / len(train_accuracy)
+        test_loss = sum(test_loss) / len(test_loss)
+        test_accuracy = sum(test_accuracy) / len(test_accuracy)
+
+        named_tuple = time.localtime()
+        time_string = time.strftime("%H:%M:%S", named_tuple)
+        print(colored(f"[{time_string}] Epoch: {epoch}", "cyan"))
         print(
-            "train_loss: %.4f, train_accuracy: %.2f, test_loss: %.4f, test_accuracy: %.2f"
+            f"{' '*10} train_loss: %.4f, train_accuracy: %.2f, test_loss: %.4f, test_accuracy: %.2f"
             % (train_loss, train_accuracy * 100, test_loss, test_accuracy * 100)
         )
 
@@ -208,18 +232,13 @@ def parse_args():
         required=False,
     )
     parser.add_argument(
-        "--dataset-name",
-        help="Name of the dataset. Must be implemented in TFDS.",
-        required=True,
-    )
-    parser.add_argument(
-        "--num-classes",
-        help="Number of classes in the dataset.",
-        required=True,
-    )
-    parser.add_argument(
         "--eval-only",
         action="store_true",
+        required=False,
+    )
+    parser.add_argument(
+        "--checkpoint_dir",
+        help="Path to load checkpoint from, either for evaluation or fine-tuning.",
         required=False,
     )
     args = parser.parse_args()
@@ -248,7 +267,7 @@ if __name__ == "__main__":
 
     cfg = get_config()
     train_ds, test_ds = get_jnp_dataset(
-        name=args.dataset_name, batch_size=cfg.batch_size
+        name=cfg.dataset_name, batch_size=cfg.batch_size
     )
 
     steps_per_epoch = len(train_ds)
@@ -258,7 +277,7 @@ if __name__ == "__main__":
         num_steps = cfg.num_train_steps
 
     if cfg.steps_per_eval == -1:
-        num_validation_examples = len(test_ds["image"])
+        num_validation_examples = len(test_ds)
         steps_per_eval = num_validation_examples // cfg.batch_size
     else:
         steps_per_eval = cfg.steps_per_eval
@@ -267,21 +286,65 @@ if __name__ == "__main__":
     base_learning_rate = cfg.learning_rate * cfg.batch_size / 256
     learning_rate_fn = learning_rate_schedule(cfg, base_learning_rate, steps_per_epoch)
 
-    data_shape = test_ds["image"].shape
-    state = create_train_state(
-        model_name=args.model_name,
-        init_rng=random.PRNGKey(0),
-        num_classes=int(args.num_classes),
-        image_size=(cfg.batch_size, data_shape[1], data_shape[2], data_shape[3]),
-        cfg=cfg,
-        learning_rate_fn=learning_rate_fn,
-    )
+    if not args.eval_only:
+        state = create_train_state(
+            model_name=args.model_name,
+            init_rng=random.PRNGKey(0),
+            num_classes=int(cfg.num_classes),
+            image_size=(
+                cfg.batch_size,
+                cfg.data_shape[0],
+                cfg.data_shape[1],
+                cfg.data_shape[2],
+            ),
+            cfg=cfg,
+            learning_rate_fn=learning_rate_fn,
+        )
 
-    train_and_evaluate(
-        state=state,
-        cfg=cfg,
-        work_dir=args.work_dir,
-        train_ds=train_ds,
-        test_ds=test_ds,
-        num_classes=args.num_classes,
-    )
+        train_and_evaluate(
+            state=state,
+            cfg=cfg,
+            work_dir=args.work_dir,
+            train_ds=train_ds,
+            test_ds=test_ds,
+            num_classes=cfg.num_classes,
+        )
+
+    else:
+        rng, init_rng = random.split(random.PRNGKey(0))
+
+        state = create_train_state(
+            model_name=args.model_name,
+            init_rng=init_rng,
+            num_classes=int(cfg.num_classes),
+            image_size=(
+                cfg.batch_size,
+                cfg.data_shape[0],
+                cfg.data_shape[1],
+                cfg.data_shape[2],
+            ),
+            cfg=cfg,
+            learning_rate_fn=learning_rate_fn,
+            pretrained=True,
+            checkpoint=args.checkpoint_dir,
+        )
+
+        test_loss, test_accuracy = list(), list()
+
+        for batch in test_ds:
+            test_loss_batch, test_accuracy_batch = step(
+                state, batch, int(cfg.num_classes), False, init_rng
+            )
+            test_loss.append(test_loss_batch)
+            test_accuracy.append(test_accuracy_batch)
+
+        test_loss = sum(test_loss) / len(test_loss)
+        test_accuracy = sum(test_accuracy) / len(test_accuracy)
+
+        named_tuple = time.localtime()
+        time_string = time.strftime("%H:%M:%S", named_tuple)
+        print(colored(f"[{time_string}] Evaluation:", "cyan"))
+        print(
+            f"{' '*10} test_loss: %.4f, test_accuracy: %.2f"
+            % (test_loss, test_accuracy * 100)
+        )
