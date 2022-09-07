@@ -236,7 +236,7 @@ def parse_args():
         required=False,
     )
     parser.add_argument(
-        "--checkpoint_dir",
+        "--checkpoint-dir",
         help="Path to load checkpoint from, either for evaluation or fine-tuning.",
         required=False,
     )
