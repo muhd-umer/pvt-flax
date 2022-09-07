@@ -30,8 +30,8 @@ def get_config():
     config.steps_per_eval = -1
 
     # configure input dataset keys
-    config.dataset_name = "mnist"
-    config.data_shape = [28, 28, 1]
+    config.dataset_name = "cifar10"
+    config.data_shape = [32, 32, 3]
     config.num_classes = 10
 
     return config

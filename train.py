@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Union, Iterable, Any
 import argparse
 import os
@@ -10,11 +9,9 @@ from termcolor import colored
 import time
 
 import jax
-from jax import lax
 from jax import random
 import jax.numpy as jnp
 import optax
-from flax import linen as nn
 from flax.metrics import tensorboard
 from flax.training import train_state, dynamic_scale
 import tensorflow as tf
@@ -73,7 +70,7 @@ def update_model(state, grads):
     return state.apply_gradients(grads=grads)
 
 
-def step(state, batch, num_classes, trainable, rng):
+def step(state, inputs, labels, num_classes, trainable, rng):
     """
     Defines a single step (forward pass).
     Returns:
@@ -82,10 +79,6 @@ def step(state, batch, num_classes, trainable, rng):
         loss: Mean loss for the current batch
         accuracy: Mean accuracy for the current batch
     """
-
-    # 1. Get the images and the labels
-    inputs, labels = batch["image"], batch["label"]
-    inputs = jnp.float32(inputs) / 255.0
 
     def loss_fn(params, num_classes, trainable, rng):
         logits = state.apply_fn(
@@ -110,7 +103,7 @@ def step(state, batch, num_classes, trainable, rng):
     return loss, accuracy
 
 
-step = jax.jit(step, static_argnums=(2, 3))
+# step = jax.jit(step, static_argnums=(2, 3))
 
 
 def create_train_state(
@@ -179,17 +172,23 @@ def train_and_evaluate(
 
         train_loss, train_accuracy = list(), list()
         test_loss, test_accuracy = list(), list()
-
+        
         for batch in train_ds:
+            inputs, labels = batch["image"], batch["label"]
+            inputs = jnp.float32(inputs) / 255.0
+
             state, train_loss_batch, train_accuracy_batch = step(
-                state, batch, int(num_classes), True, init_rng
+                state, inputs, labels, int(num_classes), True, init_rng
             )
             train_loss.append(train_loss_batch)
             train_accuracy.append(train_accuracy_batch)
 
         for batch in test_ds:
+            inputs, labels = batch["image"], batch["label"]
+            inputs = jnp.float32(inputs) / 255.0
+
             test_loss_batch, test_accuracy_batch = step(
-                state, batch, int(num_classes), False, init_rng
+                state, inputs, labels, int(num_classes), False, init_rng
             )
             test_loss.append(test_loss_batch)
             test_accuracy.append(test_accuracy_batch)
