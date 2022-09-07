@@ -174,6 +174,8 @@ def train_and_evaluate(
     summary_writer.hparams(dict(cfg))
     rng = random.PRNGKey(0)
 
+    print("/n")
+
     for epoch in range(0, cfg.num_epochs):
         rng, init_rng = random.split(rng)
 
@@ -186,8 +188,6 @@ def train_and_evaluate(
             )
             train_loss.append(train_loss_batch)
             train_accuracy.append(train_accuracy_batch)
-
-        save_checkpoint(target=state, epoch=epoch, output_dir=work_dir)
 
         for batch in test_ds:
             test_loss_batch, test_accuracy_batch = step(
@@ -208,6 +208,7 @@ def train_and_evaluate(
             f"{' '*10} train_loss: %.4f, train_accuracy: %.2f, test_loss: %.4f, test_accuracy: %.2f"
             % (train_loss, train_accuracy * 100, test_loss, test_accuracy * 100)
         )
+        save_checkpoint(target=state, epoch=epoch, output_dir=work_dir)
 
         summary_writer.scalar("Train_Loss", train_loss, epoch)
         summary_writer.scalar("Train_Accuracy", train_accuracy, epoch)
@@ -345,6 +346,6 @@ if __name__ == "__main__":
         time_string = time.strftime("%H:%M:%S", named_tuple)
         print(colored(f"[{time_string}] Evaluation:", "cyan"))
         print(
-            f"{' '*10} test_loss: %.4f, test_accuracy: %.2f"
-            % (test_loss, test_accuracy * 100)
+            f"{' '*10} Accuracy on Test Set: %.2f"
+            % (test_accuracy * 100)
         )
