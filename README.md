@@ -5,9 +5,10 @@ All credits to the authors **Wenhai Wang, Enze Xie, Xiang Li, Deng-Ping Fan, Kai
 ## Datasets
 - **TensorFlow Datasets** - Refer to [TensorFlow Dataset Image Classification Catalog](https://www.tensorflow.org/datasets/catalog/overview#image_classification) and accordingly modify the following keys in `config/default.py`.
 ```ruby
-config.dataset_name = "mnist"   # name should be present in tensorflow catalog
-config.data_shape = [28, 28, 1]   # shape of images in the dataset
-config.num_classes = 10   # numbler of classes in the dataset
+config.dataset_name = "cifar10"
+config.data_shape = [32, 32, 3]
+config.num_classes = 10
+config.split_keys = ["train", "test"]
 ```
 - **PyTorch DataLoader** - To load datasets in PyTorch style, use the wrapper for torch.DataLoader in `data/numpyloader.py` -> `NumpyLoader` along with a custom collate function.
 - **Custom Dataset** - Currently, this repo does not support out of the box support for custom image classification dataset. However, you can manipulate `NumpyLoader` to accomplish this.
