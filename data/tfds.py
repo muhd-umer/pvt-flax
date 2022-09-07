@@ -29,11 +29,11 @@ def get_jnp_dataset(
     """
     train_data, info = tfds.load(name=name, split=split_keys[0], with_info=True)
     train_data = train_data.map(lambda row: transform_images(row, img_shape))
-    train_data = train_data.repeat().cache().batch(batch_size)
+    train_data = train_data.repeat().batch(batch_size)
 
     test_data = tfds.load(name=name, split=split_keys[1])
     test_data = test_data.map(lambda row: transform_images(row, img_shape))
-    test_data = test_data.repeat().cache().batch(batch_size)
+    test_data = test_data.repeat().batch(batch_size)
 
     train_ds = tfds.as_numpy(train_data)
     test_ds = tfds.as_numpy(test_data)
