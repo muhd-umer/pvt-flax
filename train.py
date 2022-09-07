@@ -268,21 +268,21 @@ if __name__ == "__main__":
         f"process_count: {jax.process_count()}"
     )
 
-    train_ds, test_ds = get_jnp_dataset(
+    train_ds, test_ds, info = get_jnp_dataset(
         name=cfg.dataset_name,
         batch_size=cfg.batch_size,
         img_shape=[cfg.data_shape[0], cfg.data_shape[1]],
         split_keys=cfg.split_keys,
     )
 
-    steps_per_epoch = len(train_ds)
+    steps_per_epoch = len(info.splits["train"].num_examples)
     if cfg.num_train_steps == -1:
         num_steps = int(steps_per_epoch * cfg.num_epochs)
     else:
         num_steps = cfg.num_train_steps
 
     if cfg.steps_per_eval == -1:
-        num_validation_examples = len(test_ds)
+        num_validation_examples = len(info.splits["test"].num_examples)
         steps_per_eval = num_validation_examples // cfg.batch_size
     else:
         steps_per_eval = cfg.steps_per_eval
