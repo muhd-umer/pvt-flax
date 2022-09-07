@@ -16,6 +16,7 @@ config.split_keys = ["train", "test"]
 ## Dependencies
 *It is recommended to create a new virtual environment so that updates/downgrades of packages do not break other projects.*<br/>
 - Environment characteristics:<br/>`python = 3.9.12` `cuda = 11.3` `jax = 0.3.16` `flax = 0.6.0`
+- Follow the instructions on [official JAX/Flax documentation](https://flax.readthedocs.io/en/latest/installation.html) for installing their packages.
 ```
 pip install -r requirements.txt
 ```
