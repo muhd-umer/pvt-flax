@@ -221,8 +221,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train/Evaluate your Flax model.")
     parser.add_argument(
         "--model-name",
-        help="Name of the model variant.",
-        required=True,
+        default="PVT_V2_B0",
+        help="Name of the model variant. Currently supports PVT_V2_B[Index] where Index ranges from 0 to 5.",
+        required=False,
     )
     parser.add_argument(
         "--work-dir",
@@ -246,7 +247,11 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    cfg = get_config()
     args = parse_args()
+    assert (
+        args.model_name in model_dict
+    ), f"Method {args.model_name} not yet implemented."
 
     # Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
     # it unavailable to JAX.
@@ -260,11 +265,7 @@ if __name__ == "__main__":
         f"process_index: {jax.process_index()}, "
         f"process_count: {jax.process_count()}"
     )
-    assert (
-        args.model_name in model_dict
-    ), f"Method {args.model_name} not yet implemented."
 
-    cfg = get_config()
     train_ds, test_ds = get_jnp_dataset(
         name=cfg.dataset_name, batch_size=cfg.batch_size
     )
@@ -343,6 +344,7 @@ if __name__ == "__main__":
         test_loss = sum(test_loss) / len(test_loss)
         test_accuracy = sum(test_accuracy) / len(test_accuracy)
 
+        print("\n")
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
         print(colored(f"[{time_string}] Evaluation:", "cyan"))
