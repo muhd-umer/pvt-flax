@@ -18,12 +18,8 @@ def get_jnp_dataset(name: str, batch_size: int):
     Returns:
         Train and Test data with features_dict.
     """
-    ds_builder = tfds.builder(name=name)
-    ds_builder.download_and_prepare()
-
-    train_ds = ds_builder.as_dataset(split="train", batch_size=batch_size)
-    test_ds = ds_builder.as_dataset(split="test", batch_size=batch_size)
-
+    train_ds = tfds.load(name, split="train").batch(batch_size).cache()
+    test_ds = tfds.load(name, split="test").batch(batch_size).cache()
     train_ds = tfds.as_numpy(train_ds)
     test_ds = tfds.as_numpy(test_ds)
 
