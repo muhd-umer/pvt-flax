@@ -6,3 +6,4 @@ tensorflow-cpu
 torch
 clu==0.0.7
 tensorstore==0.1.23
+termcolor

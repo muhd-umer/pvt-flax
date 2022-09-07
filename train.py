@@ -166,8 +166,6 @@ def train_and_evaluate(
     summary_writer.hparams(dict(cfg))
     rng = random.PRNGKey(0)
 
-    print("\n")
-
     for epoch in range(0, cfg.num_epochs):
         rng, init_rng = random.split(rng)
 
@@ -349,7 +347,6 @@ if __name__ == "__main__":
         test_loss = sum(test_loss) / len(test_loss)
         test_accuracy = sum(test_accuracy) / len(test_accuracy)
 
-        print("\n")
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
         print(colored(f"[{time_string}] Evaluation:", "cyan"))
