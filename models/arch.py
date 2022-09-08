@@ -230,10 +230,10 @@ def create_PVT_V2(
     in_shape=(1, 32, 32, 3),
     distributed=False,
 ):
-    key, drop = random.split(rng)
-    model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
 
     if distributed:
+        key, drop = random.split(rng)
+        model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
 
         @jax.jit
         def init_params(*args):
@@ -254,6 +254,9 @@ def create_PVT_V2(
         return model, params["params"]
 
     if distributed:
+        key = random.split(rng, jax.local_device_count())
+        drop = random.split(rng, jax.local_device_count())
+        model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
 
         @jax.pmap
         def init_params(*args):

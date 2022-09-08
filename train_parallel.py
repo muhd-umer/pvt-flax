@@ -109,8 +109,8 @@ step = jax.pmap(step, axis_name="ensemble", static_broadcasted_argnums=(3, 4))
 
 
 def create_train_state(
-    model,
     params,
+    model,
     warmup_epochs,
     num_epochs,
     base_lr,
@@ -134,7 +134,7 @@ def create_train_state(
 
 
 create_train_state = jax.pmap(
-    create_train_state, static_broadcasted_argnums=(0, 2, 3, 4, 5)
+    create_train_state, static_broadcasted_argnums=tuple(range((1, 6))
 )
 
 
