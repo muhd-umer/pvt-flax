@@ -1,11 +1,10 @@
-from typing import Union, Iterable, Any
+from typing import Union, Iterable
 import argparse
 import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
 import os.path as osp
-from unittest import runner
 import numpy as np
 from utils import save_checkpoint, restore_checkpoint
 from termcolor import colored
@@ -303,10 +302,7 @@ if __name__ == "__main__":
             assert osp.exists(
                 args.checkpoint_dir
             ), f"Checkpoint directory does not exist. Recheck input arguments."
-            pretrained_weights = restore_checkpoint(checkpoint_dir=args.checkpoint_dir)
-            state.params = unfreeze(state.params)
-            state.params.update(pretrained_weights)
-            state.params = freeze(state.params)
+            state = restore_checkpoint(state, checkpoint_dir=args.checkpoint_dir)
 
         train_and_evaluate(
             state=state,
@@ -340,10 +336,7 @@ if __name__ == "__main__":
             ),
         )
 
-        pretrained_weights = restore_checkpoint(checkpoint_dir=args.checkpoint_dir)
-        state.params = unfreeze(state.params)
-        state.params.update(pretrained_weights)
-        state.params = freeze(state.params)
+        state = restore_checkpoint(state, checkpoint_dir=args.checkpoint_dir)
 
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
