@@ -23,6 +23,7 @@ https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/pvt_v2
 
 
 from functools import partial
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import random
@@ -231,21 +232,24 @@ def create_PVT_V2(
     key, drop = random.split(rng)
     model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
 
+    def init_params(model, *args):
+        return model.init(
+            {"params": key, "dropout": drop}, jnp.ones(in_shape), trainable=True
+        )
+
+    init_model = jax.jit(init_params, static_argnums=(0,))
+
     if checkpoint:
         assert osp.exists(
             checkpoint
         ), f"Checkpoint directory does not exist. Recheck input arguments."
         pretrained_weights = restore_checkpoint(checkpoint_dir=checkpoint)
-        params = model.init(
-            {"params": key, "dropout": drop}, jnp.ones(in_shape), trainable=True
-        )
+        params = init_model(model)
         params = unfreeze(params)
         params["params"].update(pretrained_weights)
         params = freeze(params)
     else:
-        params = model.init(
-            {"params": key, "dropout": drop}, jnp.ones(in_shape), trainable=True
-        )
+        params = init_model(model)
 
     return model, params["params"]
 
