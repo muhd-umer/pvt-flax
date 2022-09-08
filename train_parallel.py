@@ -148,7 +148,7 @@ def create_train_state(
 
 
 create_train_state = jax.pmap(
-    create_train_state, static_broadcasted_argnums=tuple(range((1, 6)))
+    create_train_state, static_broadcasted_argnums=(1, 2, 3, 4, 5))
 )
 
 
