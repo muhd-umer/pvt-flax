@@ -55,18 +55,30 @@ def apply_model(state, inputs, labels, num_classes, dropout_rng=None, trainable=
         loss: Mean loss for the current batch
         accuracy: Mean accuracy for the current batch
     """
-    dropout_rng = random.fold_in(dropout_rng[0], state.step)
+    if dropout_rng:
+        dropout_rng = random.fold_in(dropout_rng[0], state.step)
 
-    def loss_fn(params):
-        logits = state.apply_fn(
-            {"params": params},
-            inputs,
-            trainable=trainable,
-            rngs={"dropout": dropout_rng},
-        )
-        one_hot = jax.nn.one_hot(labels, num_classes)
-        loss = optax.softmax_cross_entropy(logits, one_hot).mean()
-        return loss, logits
+        def loss_fn(params):
+            logits = state.apply_fn(
+                {"params": params},
+                inputs,
+                trainable=trainable,
+                rngs={"dropout": dropout_rng},
+            )
+            one_hot = jax.nn.one_hot(labels, num_classes)
+            loss = optax.softmax_cross_entropy(logits, one_hot).mean()
+            return loss, logits
+
+    else:
+        def loss_fn(params):
+            logits = state.apply_fn(
+                {"params": params},
+                inputs,
+                trainable=trainable,
+            )
+            one_hot = jax.nn.one_hot(labels, num_classes)
+            loss = optax.softmax_cross_entropy(logits, one_hot).mean()
+            return loss, logits
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     (loss, logits), grads = grad_fn(state.params)
