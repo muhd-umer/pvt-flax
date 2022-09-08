@@ -7,8 +7,7 @@ import tensorflow as tf
 import os.path as osp
 from unittest import runner
 import numpy as np
-import ml_collections
-from utils import save_checkpoint
+from utils import save_checkpoint, restore_checkpoint
 from termcolor import colored
 import time
 
@@ -18,6 +17,7 @@ import jax.numpy as jnp
 import optax
 from flax.metrics import tensorboard
 from flax.training import train_state
+from flax.core import freeze, unfreeze
 import tensorflow as tf
 from clu import platform
 
@@ -296,6 +296,15 @@ if __name__ == "__main__":
             ),
         )
 
+        if args.checkpont_dir:
+            assert osp.exists(
+                args.checkpont_dir
+            ), f"Checkpoint directory does not exist. Recheck input arguments."
+            pretrained_weights = restore_checkpoint(checkpoint_dir=args.checkpoint_dir)
+            state.params = unfreeze(state.params)
+            state.params.update(pretrained_weights)
+            state.params = freeze(state.params)
+
         train_and_evaluate(
             state=state,
             epochs=cfg.num_epochs,
@@ -310,6 +319,9 @@ if __name__ == "__main__":
         assert (
             args.checkpoint_dir
         ), f"Checkpoint directory must be specified if evaluating."
+        assert osp.exists(
+            args.checkpont_dir
+        ), f"Checkpoint directory does not exist. Recheck input arguments."
 
         state = create_train_state(
             model=model_dict[args.model_name],
@@ -323,6 +335,11 @@ if __name__ == "__main__":
                 cfg.data_shape[2],
             ),
         )
+
+        pretrained_weights = restore_checkpoint(checkpoint_dir=args.checkpoint_dir)
+        state.params = unfreeze(state.params)
+        state.params.update(pretrained_weights)
+        state.params = freeze(state.params)
 
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
