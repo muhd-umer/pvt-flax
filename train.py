@@ -25,7 +25,6 @@ from data import get_jnp_dataset
 from tqdm import tqdm
 from config import get_config
 from models import (
-    create_PVT_V2,
     PVT_V2_B0,
     PVT_V2_B1,
     PVT_V2_B2,
@@ -44,92 +43,120 @@ model_dict = {
 }
 
 
-def learning_rate_schedule(
-    cfg: ml_collections.ConfigDict, base_learning_rate: float, steps_per_epoch: int
-):
-    """
-    Create learning rate schedule.
-    """
-    warmup_fn = optax.linear_schedule(
-        init_value=0.0,
-        end_value=base_learning_rate,
-        transition_steps=cfg.warmup_epochs * steps_per_epoch,
-    )
-    cosine_epochs = max(cfg.num_epochs - cfg.warmup_epochs, 1)
-    cosine_fn = optax.cosine_decay_schedule(
-        init_value=base_learning_rate, decay_steps=cosine_epochs * steps_per_epoch
-    )
-    schedule_fn = optax.join_schedules(
-        schedules=[warmup_fn, cosine_fn],
-        boundaries=[cfg.warmup_epochs * steps_per_epoch],
-    )
-    return schedule_fn
-
-
 @jax.jit
 def update_model(state, grads):
     return state.apply_gradients(grads=grads)
 
 
-def step(state, inputs, labels, num_classes, trainable, rng):
+def apply_model(state, inputs, labels, num_classes, rng, trainable):
     """
-    Defines a single step (forward pass).
+    Defines a single apply on model.
     Returns:
-        if trainable:
-            state: Updated state of the model
+        grads: To apply to the state
         loss: Mean loss for the current batch
         accuracy: Mean accuracy for the current batch
     """
 
-    def loss_fn(params, num_classes, trainable, rng):
+    def loss_fn(params):
         logits = state.apply_fn(
             {"params": params}, inputs, trainable=trainable, rngs={"dropout": rng}
         )
         one_hot = jax.nn.one_hot(labels, num_classes)
-        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
-
+        loss = optax.softmax_cross_entropy(logits, one_hot).mean()
         return loss, logits
 
-    if trainable:
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss, logits), grads = grad_fn(state.params, num_classes, trainable, rng)
-        accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
-        state = update_model(state, grads)
-
-        return state, loss, accuracy
-
-    loss, logits = loss_fn(state.params, num_classes, trainable, rng)
+    grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+    (loss, logits), grads = grad_fn(state.params)
     accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
 
-    return loss, accuracy
+    return grads, loss, accuracy
 
 
-step = jax.jit(step, static_argnums=(3, 4))
+apply_model = jax.jit(apply_model, static_argnums=(3, 5))
+
+
+def train_epoch(state, train_ds, num_classes, total, rng):
+    """
+    Defines a single training epoch (forward passes).
+    Returns:
+        state: Updated state of the model
+        loss: Mean loss for the current batch
+        accuracy: Mean accuracy for the current batch
+    """
+    train_loss, train_accuracy = list(), list()
+
+    for batch in tqdm(
+        train_ds,
+        total=total,
+        desc=colored(f"{' '*10} Training", "magenta"),
+        colour="cyan",
+    ):
+        inputs, labels = batch["image"], batch["label"]
+        inputs = jnp.float32(inputs) / 255.0
+        labels = jnp.float32(labels)
+
+        grads, loss, accuracy = apply_model(
+            state, inputs, labels, num_classes, rng, True
+        )
+        state = update_model(state, grads)
+        train_loss.append(loss)
+        train_accuracy.append(accuracy)
+
+    epoch_loss = np.mean(train_loss)
+    epoch_accuracy = np.mean(train_accuracy)
+
+    return state, epoch_loss, epoch_accuracy
+
+
+def test_epoch(state, test_ds, num_classes, total, rng):
+    """
+    Defines a single test epoch (validation).
+    Returns:
+        loss: Mean loss for the current batch
+        accuracy: Mean accuracy for the current batch
+    """
+    test_loss, test_accuracy = list(), list()
+
+    for batch in tqdm(
+        test_ds,
+        total=total,
+        desc=colored(f"{' '*10} Validating", "magenta"),
+        colour="cyan",
+    ):
+        inputs, labels = batch["image"], batch["label"]
+        inputs = jnp.float32(inputs) / 255.0
+        labels = jnp.float32(labels)
+
+        _, loss, accuracy = apply_model(state, inputs, labels, num_classes, rng, False)
+        test_loss.append(loss)
+        test_accuracy.append(accuracy)
+
+    epoch_loss = np.mean(test_loss)
+    epoch_accuracy = np.mean(test_accuracy)
+
+    return epoch_loss, epoch_accuracy
 
 
 def create_train_state(
-    model_name: str,
-    init_rng,
+    model,
+    rng,
+    learning_rate,
     num_classes: int,
-    image_size: Iterable[int],
-    cfg: ml_collections.ConfigDict,
-    learning_rate_fn,
-    checkpoint=None,
+    image_shape: Iterable[int],
 ):
     """
     Creates initial `TrainState`. For more information
         refer to the official Flax documentation.
     https://flax.readthedocs.io/en/latest/api_reference/flax.training.html#train-state
     """
+    rng, init_rng = random.split(rng)
 
-    model, params = create_PVT_V2(
-        model_dict[model_name],
-        init_rng,
-        num_classes=num_classes,
-        in_shape=image_size,
-        checkpoint=checkpoint,
-    )
-    tx = optax.adamw(learning_rate=learning_rate_fn)
+    model = model(num_classes=num_classes)
+    params = model.init(
+        {"params": rng, "dropout": init_rng}, jnp.ones(image_shape), True
+    )["params"]
+
+    tx = optax.adamw(learning_rate=learning_rate)
     state = train_state.TrainState.create(
         apply_fn=model.apply,
         params=params,
@@ -137,6 +164,9 @@ def create_train_state(
     )
 
     return state
+
+
+create_train_state = jax.jit(create_train_state, static_argnums=(0, 2, 3, 4))
 
 
 def train_and_evaluate(
@@ -163,8 +193,6 @@ def train_and_evaluate(
     for epoch in range(1, epochs + 1):
         rng, init_rng = random.split(rng)
 
-        train_loss, train_accuracy = list(), list()
-        test_loss, test_accuracy = list(), list()
         total_train = info.splits["train"].num_examples
         total_test = info.splits["test"].num_examples
         named_tuple = time.localtime()
@@ -172,42 +200,13 @@ def train_and_evaluate(
 
         print(colored(f"[{time_string}] Epoch: {epoch}", "cyan"))
 
-        for batch in tqdm(
-            train_ds,
-            total=total_train,
-            desc=colored(f"{' '*10} Training", "magenta"),
-            colour="cyan",
-        ):
-            inputs, labels = batch["image"], batch["label"]
-            inputs = jnp.float32(inputs) / 255.0
-            labels = jnp.float32(labels)
+        state, train_loss, train_accuracy = train_epoch(
+            state, train_ds, num_classes, total_train, init_rng
+        )
 
-            state, train_loss_batch, train_accuracy_batch = step(
-                state, inputs, labels, int(num_classes), True, init_rng
-            )
-            train_loss.append(train_loss_batch)
-            train_accuracy.append(train_accuracy_batch)
-
-        for batch in tqdm(
-            test_ds,
-            total=total_test,
-            desc=colored(f"[{time_string}] Validating", "magenta"),
-            colour="cyan",
-        ):
-            inputs, labels = batch["image"], batch["label"]
-            inputs = jnp.float32(inputs) / 255.0
-            labels = jnp.float32(labels)
-
-            test_loss_batch, test_accuracy_batch = step(
-                state, inputs, labels, int(num_classes), False, init_rng
-            )
-            test_loss.append(test_loss_batch)
-            test_accuracy.append(test_accuracy_batch)
-
-        train_loss = sum(train_loss) / len(train_loss)
-        train_accuracy = sum(train_accuracy) / len(train_accuracy)
-        test_loss = sum(test_loss) / len(test_loss)
-        test_accuracy = sum(test_accuracy) / len(test_accuracy)
+        test_loss, test_accuracy = test_epoch(
+            state, test_ds, num_classes, total_test, init_rng
+        )
 
         print(
             f"{' '*10} train_loss: %.4f, train_accuracy: %.2f, test_loss: %.4f, test_accuracy: %.2f"
@@ -263,6 +262,7 @@ if __name__ == "__main__":
     # Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
     # it unavailable to JAX.
     tf.config.experimental.set_visible_devices([], "GPU")
+
     jax_process = str(f"JAX Process: {jax.process_index()} / {jax.process_count()}")
     jax_devices = str(f"JAX Local Devices: {jax.local_devices()}")
     print(colored(jax_process, "magenta"))
@@ -280,36 +280,20 @@ if __name__ == "__main__":
         split_keys=cfg.split_keys,
     )
 
-    steps_per_epoch = info.splits["train"].num_examples
-    if cfg.num_train_steps == -1:
-        num_steps = int(steps_per_epoch * cfg.num_epochs)
-    else:
-        num_steps = cfg.num_train_steps
-
-    if cfg.steps_per_eval == -1:
-        num_validation_examples = info.splits["test"].num_examples
-        steps_per_eval = num_validation_examples // cfg.batch_size
-    else:
-        steps_per_eval = cfg.steps_per_eval
-
-    steps_per_checkpoint = steps_per_epoch * 10
-    base_learning_rate = cfg.learning_rate * cfg.batch_size / 256
-    learning_rate_fn = learning_rate_schedule(cfg, base_learning_rate, steps_per_epoch)
+    learning_rate = cfg.learning_rate
 
     if not args.eval_only:
         state = create_train_state(
-            model_name=args.model_name,
-            init_rng=random.PRNGKey(0),
+            model=model_dict[args.model_name],
+            rng=random.PRNGKey(0),
+            learning_rate=learning_rate,
             num_classes=int(cfg.num_classes),
-            image_size=(
+            image_shape=(
                 1,
                 cfg.data_shape[0],
                 cfg.data_shape[1],
                 cfg.data_shape[2],
             ),
-            cfg=cfg,
-            learning_rate_fn=learning_rate_fn,
-            checkpoint=args.checkpoint_dir,
         )
 
         train_and_evaluate(
@@ -326,40 +310,26 @@ if __name__ == "__main__":
         assert (
             args.checkpoint_dir
         ), f"Checkpoint directory must be specified if evaluating."
-        rng, init_rng = random.split(random.PRNGKey(0))
 
         state = create_train_state(
-            model_name=args.model_name,
-            init_rng=init_rng,
+            model=model_dict[args.model_name],
+            rng=random.PRNGKey(0),
+            learning_rate=learning_rate,
             num_classes=int(cfg.num_classes),
-            image_size=(
+            image_shape=(
                 1,
                 cfg.data_shape[0],
                 cfg.data_shape[1],
                 cfg.data_shape[2],
             ),
-            cfg=cfg,
-            learning_rate_fn=learning_rate_fn,
-            checkpoint=args.checkpoint_dir,
         )
 
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
-        test_loss, test_accuracy = list(), list()
         total_test = info.splits["test"].num_examples
 
-        for batch in tqdm(
-            test_ds,
-            total=total_test,
-            desc=colored(f"[{time_string}] Evaluation", "cyan"),
-            colour="cyan",
-        ):
-            test_loss_batch, test_accuracy_batch = step(
-                state, batch, int(cfg.num_classes), False, init_rng
-            )
-            test_loss.append(test_loss_batch)
-            test_accuracy.append(test_accuracy_batch)
+        test_loss, test_accuracy = test_epoch(
+            state, test_ds, int(cfg.num_classes), total_test, random.PRNGKey(0)
+        )
 
-        test_loss = sum(test_loss) / len(test_loss)
-        test_accuracy = sum(test_accuracy) / len(test_accuracy)
         print(f"{' '*10} Accuracy on Test Set: %.2f" % (test_accuracy * 100))

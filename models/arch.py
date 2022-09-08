@@ -36,8 +36,6 @@ from layers import (
     OverlapPatchEmbed,
     MLP_with_DepthWiseConv,
 )
-from utils import restore_checkpoint
-from flax.core import freeze, unfreeze
 import os.path as osp
 
 
@@ -218,37 +216,6 @@ class PyramidVisionTransformerV2(nn.Module):
         x = self.classify(x, head)
 
         return x
-
-
-def create_PVT_V2(
-    model,
-    rng,
-    attach_head=True,
-    num_classes=1000,
-    drop_rate=0.0,
-    checkpoint=None,
-    in_shape=(1, 32, 32, 3),
-):
-    key, drop = random.split(rng)
-    model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
-
-    @jax.jit
-    def init_params(*args):
-        return model.init(*args, trainable=True)
-
-    if checkpoint:
-        assert osp.exists(
-            checkpoint
-        ), f"Checkpoint directory does not exist. Recheck input arguments."
-        pretrained_weights = restore_checkpoint(checkpoint_dir=checkpoint)
-        params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
-        params = unfreeze(params)
-        params["params"].update(pretrained_weights)
-        params = freeze(params)
-    else:
-        params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
-
-    return model, params["params"]
 
 
 PVT_V2_B0 = partial(
