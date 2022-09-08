@@ -5,3 +5,4 @@ torch
 clu==0.0.7
 tensorstore==0.1.23
 termcolor
+tqdm==4.64.1

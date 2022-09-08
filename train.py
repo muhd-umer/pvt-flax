@@ -19,6 +19,7 @@ import tensorflow as tf
 from clu import platform
 
 from data import get_jnp_dataset
+from tqdm import tqdm
 from config import get_config
 from models import (
     create_PVT_V2,
@@ -153,6 +154,7 @@ def train_and_evaluate(
     train_ds,
     test_ds,
     num_classes,
+    info,
 ) -> train_state.TrainState:
     """
     Execute model training and evaluation loop
@@ -166,13 +168,23 @@ def train_and_evaluate(
     summary_writer.hparams(dict(cfg))
     rng = random.PRNGKey(0)
 
-    for epoch in range(0, cfg.num_epochs):
+    for epoch in range(1, cfg.num_epochs + 1):
         rng, init_rng = random.split(rng)
 
         train_loss, train_accuracy = list(), list()
         test_loss, test_accuracy = list(), list()
+        total_train = info.splits["train"].num_examples
+        total_test = info.splits["test"].num_examples
+        named_tuple = time.localtime()
+        time_string = time.strftime("%H:%M:%S", named_tuple)
 
-        for batch in train_ds:
+        print(colored(f"[{time_string}] Epoch: {epoch}", "cyan"))
+
+        for batch in tqdm(
+            train_ds,
+            total=total_train,
+            desc=colored(f"{' '*10} Training: ", "magenta"),
+        ):
             inputs, labels = batch["image"], batch["label"]
             inputs = jnp.float32(inputs) / 255.0
             labels = jnp.float32(labels)
@@ -183,7 +195,11 @@ def train_and_evaluate(
             train_loss.append(train_loss_batch)
             train_accuracy.append(train_accuracy_batch)
 
-        for batch in test_ds:
+        for batch in tqdm(
+            test_ds,
+            total=total_test,
+            desc=colored(f"[{time_string}] Validating: ", "magenta"),
+        ):
             inputs, labels = batch["image"], batch["label"]
             inputs = jnp.float32(inputs) / 255.0
             labels = jnp.float32(labels)
@@ -199,9 +215,6 @@ def train_and_evaluate(
         test_loss = sum(test_loss) / len(test_loss)
         test_accuracy = sum(test_accuracy) / len(test_accuracy)
 
-        named_tuple = time.localtime()
-        time_string = time.strftime("%H:%M:%S", named_tuple)
-        print(colored(f"[{time_string}] Epoch: {epoch}", "cyan"))
         print(
             f"{' '*10} train_loss: %.4f, train_accuracy: %.2f, test_loss: %.4f, test_accuracy: %.2f"
             % (train_loss, train_accuracy * 100, test_loss, test_accuracy * 100)
@@ -312,6 +325,7 @@ if __name__ == "__main__":
             train_ds=train_ds,
             test_ds=test_ds,
             num_classes=cfg.num_classes,
+            info=info,
         )
 
     else:
@@ -335,9 +349,16 @@ if __name__ == "__main__":
             checkpoint=args.checkpoint_dir,
         )
 
+        named_tuple = time.localtime()
+        time_string = time.strftime("%H:%M:%S", named_tuple)
         test_loss, test_accuracy = list(), list()
+        total_test = info.splits["test"].num_examples
 
-        for batch in test_ds:
+        for batch in tqdm(
+            test_ds,
+            total=total_test,
+            desc=colored(f"[{time_string}] Evaluation: ", "cyan"),
+        ):
             test_loss_batch, test_accuracy_batch = step(
                 state, batch, int(cfg.num_classes), False, init_rng
             )
@@ -346,8 +367,4 @@ if __name__ == "__main__":
 
         test_loss = sum(test_loss) / len(test_loss)
         test_accuracy = sum(test_accuracy) / len(test_accuracy)
-
-        named_tuple = time.localtime()
-        time_string = time.strftime("%H:%M:%S", named_tuple)
-        print(colored(f"[{time_string}] Evaluation:", "cyan"))
         print(f"{' '*10} Accuracy on Test Set: %.2f" % (test_accuracy * 100))
