@@ -79,6 +79,7 @@ def restore_checkpoint(checkpoint_dir: Union[os.PathLike, str]):
     print(colored(f"Restoring state from {checkpoint_dir}", "green"))
     return restored_state["params"]
 
+
 def tabulate(model: nn.Module, input_shape: Iterable[int] = (1, 32, 32, 3)):
     key = random.PRNGKey(0)
     variables = model.init(key, jnp.ones(input_shape))
