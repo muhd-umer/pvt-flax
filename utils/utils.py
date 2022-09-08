@@ -66,7 +66,9 @@ def save_checkpoint(
     print(colored(f"{' '*10} Saving checkpoint at {save_dir}", "magenta"))
 
 
-def restore_checkpoint(state: train_state.TrainState, checkpoint_dir: Union[os.PathLike, str]):
+def restore_checkpoint(
+    state: train_state.TrainState, checkpoint_dir: Union[os.PathLike, str]
+):
     """
     Args:
         checkpoint_dir: Directory to load checkpoint from.
