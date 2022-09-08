@@ -69,7 +69,7 @@ def update_model(state, grads):
     return state.apply_gradients(grads=grads)
 
 
-def apply_model(state, inputs, labels, num_classes, rng, trainable):
+def apply_model(state, inputs, labels, num_classes, dropout_rng=None, trainable=False):
     """
     Defines a single apply on model.
     Returns:
@@ -77,10 +77,14 @@ def apply_model(state, inputs, labels, num_classes, rng, trainable):
         loss: Mean loss for the current batch
         accuracy: Mean accuracy for the current batch
     """
+    dropout_rng = random.fold_in(dropout_rng, state.step)
 
     def loss_fn(params):
         logits = state.apply_fn(
-            {"params": params}, inputs, trainable=trainable, rngs={"dropout": rng}
+            {"params": params},
+            inputs,
+            trainable=trainable,
+            rngs={"dropout": dropout_rng},
         )
         one_hot = jax.nn.one_hot(labels, num_classes)
         loss = optax.softmax_cross_entropy(logits, one_hot).mean()
@@ -88,19 +92,20 @@ def apply_model(state, inputs, labels, num_classes, rng, trainable):
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     (loss, logits), grads = grad_fn(state.params)
-    probs = jax.lax.pmean(jax.nn.softmax(logits), axis_name="ensemble")
+    probs = jax.lax.pmean(jax.nn.softmax(logits), axis_name="batch")
 
     accuracy = jnp.mean(jnp.argmax(probs, -1) == labels)
+    grads = jax.lax.pmean(grads, axis_name="batch")
 
     return grads, loss, accuracy
 
 
 apply_model = jax.pmap(
-    apply_model, static_broadcasted_argnums=(3, 5), axis_name="ensemble"
+    apply_model, static_broadcasted_argnums=(3, 5), axis_name="batch"
 )
 
 
-def train_epoch(state, train_ds, num_classes, total, rng):
+def train_epoch(state, train_ds, num_classes, total, dropout_rng):
     """
     Defines a single training epoch (forward passes).
     Returns:
@@ -121,7 +126,7 @@ def train_epoch(state, train_ds, num_classes, total, rng):
         labels = jax_utils.replicate(jnp.float32(labels))
 
         grads, loss, accuracy = apply_model(
-            state, inputs, labels, num_classes, rng, True
+            state, inputs, labels, num_classes, dropout_rng, True
         )
         state = update_model(state, grads)
         train_loss.append(loss)
@@ -133,7 +138,7 @@ def train_epoch(state, train_ds, num_classes, total, rng):
     return state, epoch_loss, epoch_accuracy
 
 
-def test_epoch(state, test_ds, num_classes, total, rng):
+def test_epoch(state, test_ds, num_classes, total):
     """
     Defines a single test epoch (validation).
     Returns:
@@ -152,7 +157,7 @@ def test_epoch(state, test_ds, num_classes, total, rng):
         inputs = jax_utils.replicate(jnp.float32(inputs) / 255.0)
         labels = jax_utils.replicate(jnp.float32(labels))
 
-        _, loss, accuracy = apply_model(state, inputs, labels, num_classes, rng, False)
+        _, loss, accuracy = apply_model(state, inputs, labels, num_classes)
         test_loss.append(jax_utils.unreplicate(loss))
         test_accuracy.append(jax_utils.unreplicate(accuracy))
 
@@ -174,12 +179,9 @@ def create_train_state(
         refer to the official Flax documentation.
     https://flax.readthedocs.io/en/latest/api_reference/flax.training.html#train-state
     """
-    rng, init_rng = random.split(rng)
 
     model = model(num_classes=num_classes)
-    params = model.init(
-        {"params": rng, "dropout": init_rng}, jnp.ones(image_shape), True
-    )["params"]
+    params = model.init(rng, jnp.ones(image_shape), False)["params"]
 
     tx = optax.adamw(learning_rate=learning_rate)
     state = train_state.TrainState.create(
@@ -192,7 +194,9 @@ def create_train_state(
 
 
 create_train_state = jax.pmap(
-    create_train_state, static_broadcasted_argnums=(0, 2, 3, 4)
+    create_train_state,
+    static_broadcasted_argnums=(0, 2, 3, 4),
+    axis_name="batch",
 )
 
 
@@ -205,6 +209,7 @@ def train_and_evaluate(
     test_ds,
     total_test,
     num_classes,
+    rng,
 ) -> train_state.TrainState:
     """
     Execute model training and evaluation loop
@@ -215,11 +220,9 @@ def train_and_evaluate(
     """
     os.makedirs(osp.join(work_dir, "logs"), exist_ok=True)
     summary_writer = tensorboard.SummaryWriter(osp.join(work_dir, "logs"))
-    summary_writer.hparams(dict(cfg))
-    rng = random.PRNGKey(0)
+    dropout_rngs = random.split(rng, jax.local_device_count())
 
     for epoch in range(1, epochs + 1):
-        rng, init_rng = random.split(rng)
 
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
@@ -227,12 +230,10 @@ def train_and_evaluate(
         print(colored(f"[{time_string}] Epoch: {epoch}", "cyan"))
 
         state, train_loss, train_accuracy = train_epoch(
-            state, train_ds, num_classes, total_train, init_rng
+            state, train_ds, num_classes, total_train, dropout_rngs
         )
 
-        test_loss, test_accuracy = test_epoch(
-            state, test_ds, num_classes, total_test, init_rng
-        )
+        test_loss, test_accuracy = test_epoch(state, test_ds, num_classes, total_test)
 
         print(
             f"{' '*10} train_loss: %.4f, train_accuracy: %.2f, test_loss: %.4f, test_accuracy: %.2f"
@@ -312,10 +313,13 @@ if __name__ == "__main__":
 
     learning_rate = cfg.learning_rate
 
+    rng = random.PRNGKey(0)
+    rng, init_rng = random.split(rng)
+
     if not args.eval_only:
         state = create_train_state(
             model_dict[args.model_name],
-            random.PRNGKey(0),
+            init_rng,
             learning_rate,
             int(cfg.num_classes),
             (
@@ -341,6 +345,7 @@ if __name__ == "__main__":
             test_ds,
             steps_per_test,
             cfg.num_classes,
+            rng,
         )
 
     else:
@@ -353,7 +358,7 @@ if __name__ == "__main__":
 
         state = create_train_state(
             model_dict[args.model_name],
-            random.PRNGKey(0),
+            init_rng,
             learning_rate,
             int(cfg.num_classes),
             (
@@ -370,7 +375,7 @@ if __name__ == "__main__":
         time_string = time.strftime("%H:%M:%S", named_tuple)
 
         test_loss, test_accuracy = test_epoch(
-            state, test_ds, int(cfg.num_classes), steps_per_test, random.PRNGKey(0)
+            state, test_ds, int(cfg.num_classes), steps_per_test
         )
 
         print(f"{' '*10} Accuracy on Test Set: %.2f" % (test_accuracy * 100))
