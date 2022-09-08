@@ -297,9 +297,9 @@ if __name__ == "__main__":
             ),
         )
 
-        if args.checkpont_dir:
+        if args.checkpoint_dir:
             assert osp.exists(
-                args.checkpont_dir
+                args.checkpoint_dir
             ), f"Checkpoint directory does not exist. Recheck input arguments."
             pretrained_weights = restore_checkpoint(checkpoint_dir=args.checkpoint_dir)
             state.params = unfreeze(state.params)
@@ -321,7 +321,7 @@ if __name__ == "__main__":
             args.checkpoint_dir
         ), f"Checkpoint directory must be specified if evaluating."
         assert osp.exists(
-            args.checkpont_dir
+            args.checkpoint_dir
         ), f"Checkpoint directory does not exist. Recheck input arguments."
 
         state = create_train_state(
