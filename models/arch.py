@@ -229,26 +229,57 @@ def create_PVT_V2(
     checkpoint=None,
     in_shape=(1, 32, 32, 3),
 ):
-    key, drop = random.split(rng)
-    model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
+    platform = jax.local_devices()[0].platform
 
-    @jax.jit
-    def init_params(*args):
-        return model.init(*args, trainable=True)
+    if not platform == "tpu":
+        key, drop = random.split(rng)
+        model = model(
+            attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate
+        )
 
-    if checkpoint:
-        assert osp.exists(
-            checkpoint
-        ), f"Checkpoint directory does not exist. Recheck input arguments."
-        pretrained_weights = restore_checkpoint(checkpoint_dir=checkpoint)
-        params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
-        params = unfreeze(params)
-        params["params"].update(pretrained_weights)
-        params = freeze(params)
+        @jax.jit
+        def init_params(*args):
+            return model.init(*args, trainable=True)
+
+        if checkpoint:
+            assert osp.exists(
+                checkpoint
+            ), f"Checkpoint directory does not exist. Recheck input arguments."
+            pretrained_weights = restore_checkpoint(checkpoint_dir=checkpoint)
+            params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
+            params = unfreeze(params)
+            params["params"].update(pretrained_weights)
+            params = freeze(params)
+        else:
+            params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
+
+        return model, params["params"]
+
     else:
-        params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
+        drop = random.split(rng, jax.local_device_count())
+        key = random.split(random.PRNGKey(0), jax.local_device_count())
 
-    return model, params["params"]
+        model = model(
+            attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate
+        )
+
+        @jax.pmap
+        def init_params(*args):
+            return model.init(*args, trainable=True)
+
+        if checkpoint:
+            assert osp.exists(
+                checkpoint
+            ), f"Checkpoint directory does not exist. Recheck input arguments."
+            pretrained_weights = restore_checkpoint(checkpoint_dir=checkpoint)
+            params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
+            params = unfreeze(params)
+            params["params"].update(pretrained_weights)
+            params = freeze(params)
+        else:
+            params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
+
+        return model, params["params"]
 
 
 PVT_V2_B0 = partial(

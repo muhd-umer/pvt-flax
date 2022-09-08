@@ -311,8 +311,6 @@ if __name__ == "__main__":
             checkpoint=args.checkpoint_dir,
         )
 
-        state = flax.jax_utils.replicate(state)
-
         train_and_evaluate(
             state=state,
             epochs=cfg.num_epochs,
@@ -342,8 +340,6 @@ if __name__ == "__main__":
             learning_rate_fn=learning_rate_fn,
             checkpoint=args.checkpoint_dir,
         )
-
-        state = flax.jax_utils.replicate(state)
 
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
