@@ -319,7 +319,7 @@ if __name__ == "__main__":
             init_rng=random.PRNGKey(0),
             num_classes=int(cfg.num_classes),
             image_size=(
-                cfg.batch_size,
+                1,
                 cfg.data_shape[0],
                 cfg.data_shape[1],
                 cfg.data_shape[2],
@@ -350,7 +350,7 @@ if __name__ == "__main__":
             init_rng=init_rng,
             num_classes=int(cfg.num_classes),
             image_size=(
-                cfg.batch_size,
+                1,
                 cfg.data_shape[0],
                 cfg.data_shape[1],
                 cfg.data_shape[2],
