@@ -174,9 +174,10 @@ def train_and_evaluate(
     epochs: int,
     work_dir: Union[os.PathLike, str],
     train_ds,
+    total_train,
     test_ds,
+    total_test,
     num_classes,
-    info,
 ) -> train_state.TrainState:
     """
     Execute model training and evaluation loop
@@ -193,8 +194,6 @@ def train_and_evaluate(
     for epoch in range(1, epochs + 1):
         rng, init_rng = random.split(rng)
 
-        total_train = info.splits["train"].num_examples
-        total_test = info.splits["test"].num_examples
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
 
@@ -280,6 +279,9 @@ if __name__ == "__main__":
         img_shape=[cfg.data_shape[0], cfg.data_shape[1]],
         split_keys=cfg.split_keys,
     )
+    
+    steps_per_train = info.splits['train'].num_examples // cfg.batch_size
+    steps_per_test = info.splits['train'].num_examples // cfg.batch_size
 
     learning_rate = cfg.learning_rate
 
@@ -311,7 +313,9 @@ if __name__ == "__main__":
             epochs=cfg.num_epochs,
             work_dir=args.work_dir,
             train_ds=train_ds,
+            total_train=steps_per_train,
             test_ds=test_ds,
+            total_test=steps_per_test,
             num_classes=cfg.num_classes,
             info=info,
         )
@@ -344,10 +348,9 @@ if __name__ == "__main__":
 
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
-        total_test = info.splits["test"].num_examples
 
         test_loss, test_accuracy = test_epoch(
-            state, test_ds, int(cfg.num_classes), total_test, random.PRNGKey(0)
+            state, test_ds, int(cfg.num_classes), steps_per_test, random.PRNGKey(0)
         )
 
         print(f"{' '*10} Accuracy on Test Set: %.2f" % (test_accuracy * 100))
