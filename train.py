@@ -1,7 +1,8 @@
 from typing import Union, Iterable, Any
 import argparse
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
 import os.path as osp
 from unittest import runner
@@ -132,26 +133,21 @@ def create_train_state(
     else:
         dynamic_scale = None
 
-    @jax.jit
-    def get_state(*args):
-        model, params = create_PVT_V2(
-            model_dict[model_name],
-            init_rng,
-            num_classes=num_classes,
-            in_shape=image_size,
-            checkpoint=checkpoint,
-            *args,
-        )
-        tx = optax.adamw(learning_rate=learning_rate_fn)
-        state = TrainState.create(
-            apply_fn=model.apply,
-            params=params,
-            tx=tx,
-            dynamic_scale=dynamic_scale,
-        )
-        return state
+    model, params = create_PVT_V2(
+        model_dict[model_name],
+        init_rng,
+        num_classes=num_classes,
+        in_shape=image_size,
+        checkpoint=checkpoint,
+    )
+    tx = optax.adamw(learning_rate=learning_rate_fn)
+    state = TrainState.create(
+        apply_fn=model.apply,
+        params=params,
+        tx=tx,
+        dynamic_scale=dynamic_scale,
+    )
 
-    state = get_state()
     return state
 
 
@@ -238,9 +234,6 @@ def train_and_evaluate(
 
     summary_writer.flush()
     return state
-
-
-runner = jax.jit(train_and_evaluate, static_argnums=tuple(range(1, 7)))
 
 
 def parse_args():
@@ -331,7 +324,7 @@ if __name__ == "__main__":
             checkpoint=args.checkpoint_dir,
         )
 
-        runner(
+        train_and_evaluate(
             state=state,
             epochs=cfg.num_epochs,
             work_dir=args.work_dir,

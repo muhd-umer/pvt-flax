@@ -232,24 +232,21 @@ def create_PVT_V2(
     key, drop = random.split(rng)
     model = model(attach_head=attach_head, num_classes=num_classes, drop_rate=drop_rate)
 
-    def init_params(model, *args):
-        return model.init(
-            {"params": key, "dropout": drop}, jnp.ones(in_shape), trainable=True
-        )
-
-    init_model = jax.jit(init_params, static_argnums=(0,))
+    @jax.jit
+    def init_params(*args):
+        return model.init(*args, trainable=True)
 
     if checkpoint:
         assert osp.exists(
             checkpoint
         ), f"Checkpoint directory does not exist. Recheck input arguments."
         pretrained_weights = restore_checkpoint(checkpoint_dir=checkpoint)
-        params = init_model(model)
+        params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
         params = unfreeze(params)
         params["params"].update(pretrained_weights)
         params = freeze(params)
     else:
-        params = init_model(model)
+        params = init_params({"params": key, "dropout": drop}, jnp.ones(in_shape))
 
     return model, params["params"]
 
