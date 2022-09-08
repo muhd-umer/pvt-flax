@@ -2,6 +2,7 @@ from typing import Union, Iterable, Any
 import argparse
 import os
 import os.path as osp
+from unittest import runner
 import numpy as np
 import ml_collections
 from utils import save_checkpoint
@@ -129,27 +130,32 @@ def create_train_state(
     else:
         dynamic_scale = None
 
-    model, params = create_PVT_V2(
-        model_dict[model_name],
-        init_rng,
-        num_classes=num_classes,
-        in_shape=image_size,
-        checkpoint=checkpoint,
-    )
-    tx = optax.adamw(learning_rate=learning_rate_fn)
-    state = TrainState.create(
-        apply_fn=model.apply,
-        params=params,
-        tx=tx,
-        dynamic_scale=dynamic_scale,
-    )
+    @jax.jit
+    def get_state(*args):
+        model, params = create_PVT_V2(
+            model_dict[model_name],
+            init_rng,
+            num_classes=num_classes,
+            in_shape=image_size,
+            checkpoint=checkpoint,
+            *args,
+        )
+        tx = optax.adamw(learning_rate=learning_rate_fn)
+        state = TrainState.create(
+            apply_fn=model.apply,
+            params=params,
+            tx=tx,
+            dynamic_scale=dynamic_scale,
+        )
+        return state
 
+    state = get_state()
     return state
 
 
 def train_and_evaluate(
     state: train_state.TrainState,
-    cfg: ml_collections.ConfigDict,
+    epochs: int,
     work_dir: Union[os.PathLike, str],
     train_ds,
     test_ds,
@@ -168,7 +174,7 @@ def train_and_evaluate(
     summary_writer.hparams(dict(cfg))
     rng = random.PRNGKey(0)
 
-    for epoch in range(1, cfg.num_epochs + 1):
+    for epoch in range(1, epochs + 1):
         rng, init_rng = random.split(rng)
 
         train_loss, train_accuracy = list(), list()
@@ -183,7 +189,8 @@ def train_and_evaluate(
         for batch in tqdm(
             train_ds,
             total=total_train,
-            desc=colored(f"{' '*10} Training: ", "magenta"),
+            desc=colored(f"{' '*10} Training", "magenta"),
+            colour="cyan",
         ):
             inputs, labels = batch["image"], batch["label"]
             inputs = jnp.float32(inputs) / 255.0
@@ -198,7 +205,8 @@ def train_and_evaluate(
         for batch in tqdm(
             test_ds,
             total=total_test,
-            desc=colored(f"[{time_string}] Validating: ", "magenta"),
+            desc=colored(f"[{time_string}] Validating", "magenta"),
+            colour="cyan",
         ):
             inputs, labels = batch["image"], batch["label"]
             inputs = jnp.float32(inputs) / 255.0
@@ -228,6 +236,9 @@ def train_and_evaluate(
 
     summary_writer.flush()
     return state
+
+
+runner = jax.jit(train_and_evaluate, static_argnums=tuple(range(1, 7)))
 
 
 def parse_args():
@@ -318,9 +329,9 @@ if __name__ == "__main__":
             checkpoint=args.checkpoint_dir,
         )
 
-        train_and_evaluate(
+        runner(
             state=state,
-            cfg=cfg,
+            epochs=cfg.num_epochs,
             work_dir=args.work_dir,
             train_ds=train_ds,
             test_ds=test_ds,
@@ -357,7 +368,8 @@ if __name__ == "__main__":
         for batch in tqdm(
             test_ds,
             total=total_test,
-            desc=colored(f"[{time_string}] Evaluation: ", "cyan"),
+            desc=colored(f"[{time_string}] Evaluation", "cyan"),
+            colour="cyan",
         ):
             test_loss_batch, test_accuracy_batch = step(
                 state, batch, int(cfg.num_classes), False, init_rng
