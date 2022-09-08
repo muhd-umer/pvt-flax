@@ -317,7 +317,6 @@ if __name__ == "__main__":
             test_ds=test_ds,
             total_test=steps_per_test,
             num_classes=cfg.num_classes,
-            info=info,
         )
 
     else:
