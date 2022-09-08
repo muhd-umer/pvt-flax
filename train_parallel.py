@@ -1,21 +1,6 @@
-from sched import scheduler
 from typing import Union, Iterable, Any
 import argparse
 import os
-if 'TPU_NAME' in os.environ:
-    import requests
-    if 'TPU_DRIVER_MODE' not in globals():
-        url = 'http:' + os.environ['TPU_NAME'].split(':')[1] + ':8475/requestversion/tpu_driver_nightly'
-        resp = requests.post(url)
-        TPU_DRIVER_MODE = 1
-
-
-    from jax.config import config
-    config.FLAGS.jax_xla_backend = "tpu_driver"
-    config.FLAGS.jax_backend_target = os.environ['TPU_NAME']
-    print('Registered TPU:', config.FLAGS.jax_backend_target)
-else:
-    print('No TPU detected. Can be changed under "Runtime/Change runtime type".')
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
@@ -31,6 +16,7 @@ import jax
 from jax import random
 import jax.numpy as jnp
 import optax
+import flax
 from flax.metrics import tensorboard
 from flax.training import train_state
 import tensorflow as tf
@@ -60,7 +46,7 @@ model_dict = {
 
 
 def learning_rate_schedule(
-    warmup_epochs, num_epochs, base_learning_rate, steps_per_epoch
+    cfg: ml_collections.ConfigDict, base_learning_rate: float, steps_per_epoch: int
 ):
     """
     Create learning rate schedule.
@@ -68,15 +54,15 @@ def learning_rate_schedule(
     warmup_fn = optax.linear_schedule(
         init_value=0.0,
         end_value=base_learning_rate,
-        transition_steps=warmup_epochs * steps_per_epoch,
+        transition_steps=cfg.warmup_epochs * steps_per_epoch,
     )
-    cosine_epochs = max(num_epochs - warmup_epochs, 1)
+    cosine_epochs = max(cfg.num_epochs - cfg.warmup_epochs, 1)
     cosine_fn = optax.cosine_decay_schedule(
         init_value=base_learning_rate, decay_steps=cosine_epochs * steps_per_epoch
     )
     schedule_fn = optax.join_schedules(
         schedules=[warmup_fn, cosine_fn],
-        boundaries=[warmup_epochs * steps_per_epoch],
+        boundaries=[cfg.warmup_epochs * steps_per_epoch],
     )
     return schedule_fn
 
@@ -119,12 +105,16 @@ def step(state, inputs, labels, num_classes, trainable, rng):
     return loss, accuracy
 
 
-step = jax.pmap(step, axis_name="ensemble", static_broadcasted_argnums=(3, 4))
+step = jax.pmap(step, axis_name='ensemble', static_argnums=(3, 4))
 
 
 def create_train_state(
-    params,
-    model,
+    model_name: str,
+    init_rng,
+    num_classes: int,
+    image_size: Iterable[int],
+    learning_rate_fn,
+    checkpoint=None,
 ):
     """
     Creates initial `TrainState`. For more information
@@ -132,7 +122,14 @@ def create_train_state(
     https://flax.readthedocs.io/en/latest/api_reference/flax.training.html#train-state
     """
 
-    tx = optax.adamw(learning_rate=3.5e-4)
+    model, params = create_PVT_V2(
+        model_dict[model_name],
+        init_rng,
+        num_classes=num_classes,
+        in_shape=image_size,
+        checkpoint=checkpoint,
+    )
+    tx = optax.adamw(learning_rate=learning_rate_fn)
     state = train_state.TrainState.create(
         apply_fn=model.apply,
         params=params,
@@ -140,10 +137,6 @@ def create_train_state(
     )
 
     return state
-
-
-create_train_state = jax.pmap(
-    create_train_state, static_broadcasted_argnums=(1,))
 
 
 def train_and_evaluate(
@@ -267,6 +260,9 @@ if __name__ == "__main__":
         args.model_name in model_dict
     ), f"Method {args.model_name} not yet implemented."
 
+    # Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
+    # it unavailable to JAX.
+    tf.config.experimental.set_visible_devices([], "GPU")
     jax_process = str(f"JAX Process: {jax.process_index()} / {jax.process_count()}")
     jax_devices = str(f"JAX Local Devices: {jax.local_devices()}")
     print(colored(jax_process, "magenta"))
@@ -298,28 +294,24 @@ if __name__ == "__main__":
 
     steps_per_checkpoint = steps_per_epoch * 10
     base_learning_rate = cfg.learning_rate * cfg.batch_size / 256
-
-    model, params = create_PVT_V2(
-        model_dict[args.model_name],
-        rng=random.PRNGKey(0),
-        num_classes=cfg.num_classes,
-        in_shape=(
-            1,
-            cfg.data_shape[0],
-            cfg.data_shape[1],
-            cfg.data_shape[2],
-        ),
-        checkpoint=args.checkpoint_dir,
-        distributed=True
-    )
-
-    lr_list = [cfg.warmup_epochs, cfg.num_epochs, base_learning_rate, steps_per_epoch]
+    learning_rate_fn = learning_rate_schedule(cfg, base_learning_rate, steps_per_epoch)
 
     if not args.eval_only:
         state = create_train_state(
-            params=params,
-            model=model,
+            model_name=args.model_name,
+            init_rng=random.PRNGKey(0),
+            num_classes=int(cfg.num_classes),
+            image_size=(
+                1,
+                cfg.data_shape[0],
+                cfg.data_shape[1],
+                cfg.data_shape[2],
+            ),
+            learning_rate_fn=learning_rate_fn,
+            checkpoint=args.checkpoint_dir,
         )
+
+        state = flax.jax_utils.replicate(state)
 
         train_and_evaluate(
             state=state,
@@ -338,9 +330,20 @@ if __name__ == "__main__":
         rng, init_rng = random.split(random.PRNGKey(0))
 
         state = create_train_state(
-            params=params,
-            model=model,
+            model_name=args.model_name,
+            init_rng=init_rng,
+            num_classes=int(cfg.num_classes),
+            image_size=(
+                1,
+                cfg.data_shape[0],
+                cfg.data_shape[1],
+                cfg.data_shape[2],
+            ),
+            learning_rate_fn=learning_rate_fn,
+            checkpoint=args.checkpoint_dir,
         )
+
+        state = flax.jax_utils.replicate(state)
 
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
