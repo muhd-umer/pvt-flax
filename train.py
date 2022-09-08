@@ -279,9 +279,9 @@ if __name__ == "__main__":
         img_shape=[cfg.data_shape[0], cfg.data_shape[1]],
         split_keys=cfg.split_keys,
     )
-    
-    steps_per_train = info.splits['train'].num_examples // cfg.batch_size
-    steps_per_test = info.splits['train'].num_examples // cfg.batch_size
+
+    steps_per_train = info.splits["train"].num_examples // cfg.batch_size
+    steps_per_test = info.splits["test"].num_examples // cfg.batch_size
 
     learning_rate = cfg.learning_rate
 
