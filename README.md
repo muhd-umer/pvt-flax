@@ -40,9 +40,9 @@ python run.py --model-name "PVT_V2_B0" \
               --checkpoint_dir "output/"
 ```
 ## To do
-- [ ] Add a progress bar for training / evaluating
+- [X] Add a progress bar for training / evaluating
 - [ ] Convert ImageNet pretrained PyTorch weights (.pth) to Flax weights
-- [ ] JIT compile model initialization
+- [X] JIT compile model initialization
 
 ## Acknowledgements
 We acknowledge the excellent implementation of PVT in [MMDetection](https://github.com/open-mmlab/mmdetection), [PyTorch Image Models](https://github.com/rwightman/pytorch-image-models) and the [official implementation](https://github.com/whai362/PVT). I referred to these implementations as a source of reference.
