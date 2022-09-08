@@ -1,3 +1,4 @@
+from sched import scheduler
 from typing import Union, Iterable, Any
 import argparse
 import os
@@ -45,7 +46,7 @@ model_dict = {
 
 
 def learning_rate_schedule(
-    cfg: ml_collections.ConfigDict, base_learning_rate: float, steps_per_epoch: int
+    warmup_epochs, num_epochs, base_learning_rate, steps_per_epoch
 ):
     """
     Create learning rate schedule.
@@ -53,20 +54,20 @@ def learning_rate_schedule(
     warmup_fn = optax.linear_schedule(
         init_value=0.0,
         end_value=base_learning_rate,
-        transition_steps=cfg.warmup_epochs * steps_per_epoch,
+        transition_steps=warmup_epochs * steps_per_epoch,
     )
-    cosine_epochs = max(cfg.num_epochs - cfg.warmup_epochs, 1)
+    cosine_epochs = max(num_epochs - warmup_epochs, 1)
     cosine_fn = optax.cosine_decay_schedule(
         init_value=base_learning_rate, decay_steps=cosine_epochs * steps_per_epoch
     )
     schedule_fn = optax.join_schedules(
         schedules=[warmup_fn, cosine_fn],
-        boundaries=[cfg.warmup_epochs * steps_per_epoch],
+        boundaries=[warmup_epochs * steps_per_epoch],
     )
     return schedule_fn
 
 
-@jax.jit
+@jax.pmap
 def update_model(state, grads):
     return state.apply_gradients(grads=grads)
 
@@ -104,17 +105,16 @@ def step(state, inputs, labels, num_classes, trainable, rng):
     return loss, accuracy
 
 
-step = jax.jit(step, static_argnums=(3, 4))
+step = jax.pmap(step, axis_name="ensemble", static_broadcasted_argnums=(3, 4))
 
 
 def create_train_state(
-    model_name: str,
-    init_rng,
-    num_classes: int,
-    image_size: Iterable[int],
-    cfg: ml_collections.ConfigDict,
-    learning_rate_fn,
-    checkpoint=None,
+    model,
+    params,
+    warmup_epochs,
+    num_epochs,
+    base_lr,
+    steps,
 ):
     """
     Creates initial `TrainState`. For more information
@@ -122,14 +122,8 @@ def create_train_state(
     https://flax.readthedocs.io/en/latest/api_reference/flax.training.html#train-state
     """
 
-    model, params = create_PVT_V2(
-        model_dict[model_name],
-        init_rng,
-        num_classes=num_classes,
-        in_shape=image_size,
-        checkpoint=checkpoint,
-    )
-    tx = optax.adamw(learning_rate=learning_rate_fn)
+    schedule = learning_rate_schedule(warmup_epochs, num_epochs, base_lr, steps)
+    tx = optax.adamw(learning_rate=schedule)
     state = train_state.TrainState.create(
         apply_fn=model.apply,
         params=params,
@@ -137,6 +131,11 @@ def create_train_state(
     )
 
     return state
+
+
+create_train_state = jax.pmap(
+    create_train_state, static_broadcasted_argnums=(0, 2, 3, 4, 5)
+)
 
 
 def train_and_evaluate(
@@ -179,14 +178,14 @@ def train_and_evaluate(
             colour="cyan",
         ):
             inputs, labels = batch["image"], batch["label"]
-            inputs = jnp.float32(inputs) / 255.0
-            labels = jnp.float32(labels)
+            inputs = jax.jax_utils.replicate(jnp.float32(inputs) / 255.0)
+            labels = jax.jax_utils.replicate(jnp.float32(labels))
 
             state, train_loss_batch, train_accuracy_batch = step(
                 state, inputs, labels, int(num_classes), True, init_rng
             )
-            train_loss.append(train_loss_batch)
-            train_accuracy.append(train_accuracy_batch)
+            train_loss.append(jax.jax_utils.unreplicate(train_loss_batch))
+            train_accuracy.append(jax.jax_utils.unreplicate(train_accuracy_batch))
 
         for batch in tqdm(
             test_ds,
@@ -195,14 +194,14 @@ def train_and_evaluate(
             colour="cyan",
         ):
             inputs, labels = batch["image"], batch["label"]
-            inputs = jnp.float32(inputs) / 255.0
-            labels = jnp.float32(labels)
+            inputs = jax.jax_utils.replicate(jnp.float32(inputs) / 255.0)
+            labels = jax.jax_utils.replicate(jnp.float32(labels))
 
             test_loss_batch, test_accuracy_batch = step(
                 state, inputs, labels, int(num_classes), False, init_rng
             )
-            test_loss.append(test_loss_batch)
-            test_accuracy.append(test_accuracy_batch)
+            test_loss.append(jax.jax_utils.unreplicate(test_loss_batch))
+            test_accuracy.append(jax.jax_utils.unreplicate(test_accuracy_batch))
 
         train_loss = sum(train_loss) / len(train_loss)
         train_accuracy = sum(train_accuracy) / len(train_accuracy)
@@ -294,22 +293,31 @@ if __name__ == "__main__":
 
     steps_per_checkpoint = steps_per_epoch * 10
     base_learning_rate = cfg.learning_rate * cfg.batch_size / 256
-    learning_rate_fn = learning_rate_schedule(cfg, base_learning_rate, steps_per_epoch)
+
+    model, params = create_PVT_V2(
+        model_dict[args.model_name],
+        rng=random.PRNGKey(0),
+        num_classes=cfg.num_classes,
+        in_shape=(
+            1,
+            cfg.data_shape[0],
+            cfg.data_shape[1],
+            cfg.data_shape[2],
+        ),
+        checkpoint=args.checkpoint_dir,
+        distributed=True
+    )
+
+    lr_list = [cfg.warmup_epochs, cfg.num_epochs, base_learning_rate, steps_per_epoch]
 
     if not args.eval_only:
         state = create_train_state(
-            model_name=args.model_name,
-            init_rng=random.PRNGKey(0),
-            num_classes=int(cfg.num_classes),
-            image_size=(
-                1,
-                cfg.data_shape[0],
-                cfg.data_shape[1],
-                cfg.data_shape[2],
-            ),
-            cfg=cfg,
-            learning_rate_fn=learning_rate_fn,
-            checkpoint=args.checkpoint_dir,
+            model=model,
+            params=params,
+            warmup_epochs=cfg.warmup_epochs,
+            num_epochs=cfg.num_epochs,
+            base_lr=base_learning_rate,
+            steps=steps_per_epoch,
         )
 
         train_and_evaluate(
@@ -329,18 +337,12 @@ if __name__ == "__main__":
         rng, init_rng = random.split(random.PRNGKey(0))
 
         state = create_train_state(
-            model_name=args.model_name,
-            init_rng=init_rng,
-            num_classes=int(cfg.num_classes),
-            image_size=(
-                1,
-                cfg.data_shape[0],
-                cfg.data_shape[1],
-                cfg.data_shape[2],
-            ),
-            cfg=cfg,
-            learning_rate_fn=learning_rate_fn,
-            checkpoint=args.checkpoint_dir,
+            model=model,
+            params=params,
+            warmup_epochs=cfg.warmup_epochs,
+            num_epochs=cfg.num_epochs,
+            base_lr=base_learning_rate,
+            steps=steps_per_epoch,
         )
 
         named_tuple = time.localtime()
