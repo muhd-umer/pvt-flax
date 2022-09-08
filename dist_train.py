@@ -2,7 +2,28 @@ from typing import Union, Iterable
 import argparse
 import os
 
+if "TPU_NAME" in os.environ:
+    import requests
+
+    if "TPU_DRIVER_MODE" not in globals():
+        url = (
+            "http:"
+            + os.environ["TPU_NAME"].split(":")[1]
+            + ":8475/requestversion/tpu_driver_nightly"
+        )
+        resp = requests.post(url)
+        TPU_DRIVER_MODE = 1
+
+    from jax.config import config
+
+    config.FLAGS.jax_xla_backend = "tpu_driver"
+    config.FLAGS.jax_backend_target = os.environ["TPU_NAME"]
+    print("Registered TPU:", config.FLAGS.jax_backend_target)
+else:
+    print("No TPU detected.")
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 import tensorflow as tf
 import os.path as osp
 import numpy as np
@@ -17,6 +38,7 @@ import optax
 from flax.metrics import tensorboard
 from flax.training import train_state
 from flax.core import freeze, unfreeze
+from flax import jax_utils
 import tensorflow as tf
 from clu import platform
 
@@ -42,7 +64,7 @@ model_dict = {
 }
 
 
-@jax.jit
+@jax.pmap
 def update_model(state, grads):
     return state.apply_gradients(grads=grads)
 
@@ -66,12 +88,16 @@ def apply_model(state, inputs, labels, num_classes, rng, trainable):
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     (loss, logits), grads = grad_fn(state.params)
-    accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
+    probs = jax.lax.pmean(jax.nn.softmax(logits), axis_name="ensemble")
+
+    accuracy = jnp.mean(jnp.argmax(probs, -1) == labels)
 
     return grads, loss, accuracy
 
 
-apply_model = jax.jit(apply_model, static_argnums=(3, 5))
+apply_model = jax.pmap(
+    apply_model, static_broadcasted_argnums=(3, 5), axis_name="ensemble"
+)
 
 
 def train_epoch(state, train_ds, num_classes, total, rng):
@@ -91,8 +117,8 @@ def train_epoch(state, train_ds, num_classes, total, rng):
         colour="cyan",
     ):
         inputs, labels = batch["image"], batch["label"]
-        inputs = jnp.float32(inputs) / 255.0
-        labels = jnp.float32(labels)
+        inputs = jax_utils.replicate(jnp.float32(inputs) / 255.0)
+        labels = jax_utils.replicate(jnp.float32(labels))
 
         grads, loss, accuracy = apply_model(
             state, inputs, labels, num_classes, rng, True
@@ -101,8 +127,8 @@ def train_epoch(state, train_ds, num_classes, total, rng):
         train_loss.append(loss)
         train_accuracy.append(accuracy)
 
-    epoch_loss = np.mean(train_loss)
-    epoch_accuracy = np.mean(train_accuracy)
+    epoch_loss = np.mean(jax_utils.unreplicate(loss))
+    epoch_accuracy = np.mean(jax_utils.unreplicate(loss))
 
     return state, epoch_loss, epoch_accuracy
 
@@ -123,12 +149,12 @@ def test_epoch(state, test_ds, num_classes, total, rng):
         colour="cyan",
     ):
         inputs, labels = batch["image"], batch["label"]
-        inputs = jnp.float32(inputs) / 255.0
-        labels = jnp.float32(labels)
+        inputs = jax_utils.replicate(jnp.float32(inputs) / 255.0)
+        labels = jax_utils.replicate(jnp.float32(labels))
 
         _, loss, accuracy = apply_model(state, inputs, labels, num_classes, rng, False)
-        test_loss.append(loss)
-        test_accuracy.append(accuracy)
+        test_loss.append(jax_utils.unreplicate(loss))
+        test_accuracy.append(jax_utils.unreplicate(accuracy))
 
     epoch_loss = np.mean(test_loss)
     epoch_accuracy = np.mean(test_accuracy)
@@ -165,7 +191,9 @@ def create_train_state(
     return state
 
 
-create_train_state = jax.jit(create_train_state, static_argnums=(0, 2, 3, 4))
+create_train_state = jax.pmap(
+    create_train_state, static_broadcasted_argnums=(0, 2, 3, 4)
+)
 
 
 def train_and_evaluate(
