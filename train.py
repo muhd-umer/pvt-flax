@@ -178,7 +178,7 @@ def train_and_evaluate(
     test_ds,
     total_test,
     num_classes,
-    rng
+    rng,
 ) -> train_state.TrainState:
     """
     Execute model training and evaluation loop
@@ -190,7 +190,7 @@ def train_and_evaluate(
     os.makedirs(osp.join(work_dir, "logs"), exist_ok=True)
     summary_writer = tensorboard.SummaryWriter(osp.join(work_dir, "logs"))
     dropout_rngs = random.split(rng, jax.local_device_count())
-    
+
     for epoch in range(1, epochs + 1):
 
         named_tuple = time.localtime()
@@ -314,7 +314,7 @@ if __name__ == "__main__":
             test_ds,
             steps_per_test,
             cfg.num_classes,
-            rng
+            rng,
         )
 
     else:
