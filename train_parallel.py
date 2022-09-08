@@ -105,7 +105,7 @@ def step(state, inputs, labels, num_classes, trainable, rng):
     return loss, accuracy
 
 
-step = jax.pmap(step, axis_name='ensemble', static_argnums=(3, 4))
+step = jax.pmap(step, axis_name='ensemble', static_broadcasted_argnums=(3, 4))
 
 
 def create_train_state(
