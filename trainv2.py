@@ -71,40 +71,93 @@ def update_model(state, grads):
     return state.apply_gradients(grads=grads)
 
 
-def step(state, inputs, labels, num_classes, trainable, rng):
+def apply_model(state, inputs, labels, num_classes, rng, trainable):
     """
-    Defines a single step (forward pass).
+    Defines a single apply on model.
     Returns:
-        if trainable:
-            state: Updated state of the model
+        grads: To apply to the state
         loss: Mean loss for the current batch
         accuracy: Mean accuracy for the current batch
     """
 
-    def loss_fn(params, num_classes, trainable, rng):
+    def loss_fn(params):
         logits = state.apply_fn(
             {"params": params}, inputs, trainable=trainable, rngs={"dropout": rng}
         )
         one_hot = jax.nn.one_hot(labels, num_classes)
-        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
-
+        loss = optax.softmax_cross_entropy(logits, one_hot).mean()
         return loss, logits
 
-    if trainable:
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss, logits), grads = grad_fn(state.params, num_classes, trainable, rng)
-        accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
-        state = update_model(state, grads)
-
-        return state, loss, accuracy
-
-    loss, logits = loss_fn(state.params, num_classes, trainable, rng)
+    grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+    (loss, logits), grads = grad_fn(state.params)
     accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
 
-    return loss, accuracy
+    return grads, loss, accuracy
 
 
-step = jax.jit(step, static_argnums=(3, 4))
+apply_model = jax.jit(apply_model, static_argnums=(3, 5))
+
+
+def train_epoch(state, train_ds, num_classes, total, rng):
+    """
+    Defines a single training epoch (forward passes).
+    Returns:
+        state: Updated state of the model
+        loss: Mean loss for the current batch
+        accuracy: Mean accuracy for the current batch
+    """
+    train_loss, train_accuracy = list(), list()
+
+    for batch in tqdm(
+        train_ds,
+        total=total,
+        desc=colored(f"{' '*10} Training", "magenta"),
+        colour="cyan",
+    ):
+        inputs, labels = batch["image"], batch["label"]
+        inputs = jnp.float32(inputs) / 255.0
+        labels = jnp.float32(labels)
+
+        grads, loss, accuracy = apply_model(
+            state, inputs, labels, num_classes, rng, True
+        )
+        state = update_model(state, grads)
+        train_loss.append(loss)
+        train_accuracy.append(accuracy)
+
+    epoch_loss = np.mean(train_loss)
+    epoch_accuracy = np.mean(train_accuracy)
+
+    return state, epoch_loss, epoch_accuracy
+
+
+def test_epoch(state, test_ds, num_classes, total, rng):
+    """
+    Defines a single test epoch (validation).
+    Returns:
+        loss: Mean loss for the current batch
+        accuracy: Mean accuracy for the current batch
+    """
+    test_loss, test_accuracy = list(), list()
+
+    for batch in tqdm(
+        test_ds,
+        total=total,
+        desc=colored(f"[{time_string}] Validating", "magenta"),
+        colour="cyan",
+    ):
+        inputs, labels = batch["image"], batch["label"]
+        inputs = jnp.float32(inputs) / 255.0
+        labels = jnp.float32(labels)
+
+        _, loss, accuracy = apply_model(state, inputs, labels, num_classes, rng, False)
+        test_loss.append(loss)
+        test_accuracy.append(accuracy)
+
+    epoch_loss = np.mean(test_loss)
+    epoch_accuracy = np.mean(test_accuracy)
+
+    return epoch_loss, epoch_accuracy
 
 
 def create_train_state(
@@ -112,7 +165,6 @@ def create_train_state(
     init_rng,
     num_classes: int,
     image_size: Iterable[int],
-    cfg: ml_collections.ConfigDict,
     learning_rate_fn,
     checkpoint=None,
 ):
@@ -121,7 +173,6 @@ def create_train_state(
         refer to the official Flax documentation.
     https://flax.readthedocs.io/en/latest/api_reference/flax.training.html#train-state
     """
-    dynamic_scale = None
 
     model, params = create_PVT_V2(
         model_dict[model_name],
@@ -131,11 +182,7 @@ def create_train_state(
         checkpoint=checkpoint,
     )
     tx = optax.adamw(learning_rate=learning_rate_fn)
-    state = train_state.TrainState.create(
-        apply_fn=model.apply,
-        params=params,
-        tx=tx,
-    )
+    state = train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
 
     return state
 
@@ -164,8 +211,6 @@ def train_and_evaluate(
     for epoch in range(1, epochs + 1):
         rng, init_rng = random.split(rng)
 
-        train_loss, train_accuracy = list(), list()
-        test_loss, test_accuracy = list(), list()
         total_train = info.splits["train"].num_examples
         total_test = info.splits["test"].num_examples
         named_tuple = time.localtime()
@@ -173,42 +218,13 @@ def train_and_evaluate(
 
         print(colored(f"[{time_string}] Epoch: {epoch}", "cyan"))
 
-        for batch in tqdm(
-            train_ds,
-            total=total_train,
-            desc=colored(f"{' '*10} Training", "magenta"),
-            colour="cyan",
-        ):
-            inputs, labels = batch["image"], batch["label"]
-            inputs = jnp.float32(inputs) / 255.0
-            labels = jnp.float32(labels)
+        state, train_loss, train_accuracy = train_epoch(
+            state, train_ds, num_classes, total_train, init_rng
+        )
 
-            state, train_loss_batch, train_accuracy_batch = step(
-                state, inputs, labels, int(num_classes), True, init_rng
-            )
-            train_loss.append(train_loss_batch)
-            train_accuracy.append(train_accuracy_batch)
-
-        for batch in tqdm(
-            test_ds,
-            total=total_test,
-            desc=colored(f"[{time_string}] Validating", "magenta"),
-            colour="cyan",
-        ):
-            inputs, labels = batch["image"], batch["label"]
-            inputs = jnp.float32(inputs) / 255.0
-            labels = jnp.float32(labels)
-
-            test_loss_batch, test_accuracy_batch = step(
-                state, inputs, labels, int(num_classes), False, init_rng
-            )
-            test_loss.append(test_loss_batch)
-            test_accuracy.append(test_accuracy_batch)
-
-        train_loss = sum(train_loss) / len(train_loss)
-        train_accuracy = sum(train_accuracy) / len(train_accuracy)
-        test_loss = sum(test_loss) / len(test_loss)
-        test_accuracy = sum(test_accuracy) / len(test_accuracy)
+        test_loss, test_accuracy = test_epoch(
+            state, test_ds, num_classes, total_test, init_rng
+        )
 
         print(
             f"{' '*10} train_loss: %.4f, train_accuracy: %.2f, test_loss: %.4f, test_accuracy: %.2f"
@@ -308,7 +324,6 @@ if __name__ == "__main__":
                 cfg.data_shape[1],
                 cfg.data_shape[2],
             ),
-            cfg=cfg,
             learning_rate_fn=learning_rate_fn,
             checkpoint=args.checkpoint_dir,
         )
@@ -339,28 +354,16 @@ if __name__ == "__main__":
                 cfg.data_shape[1],
                 cfg.data_shape[2],
             ),
-            cfg=cfg,
             learning_rate_fn=learning_rate_fn,
             checkpoint=args.checkpoint_dir,
         )
 
         named_tuple = time.localtime()
         time_string = time.strftime("%H:%M:%S", named_tuple)
-        test_loss, test_accuracy = list(), list()
         total_test = info.splits["test"].num_examples
 
-        for batch in tqdm(
-            test_ds,
-            total=total_test,
-            desc=colored(f"[{time_string}] Evaluation", "cyan"),
-            colour="cyan",
-        ):
-            test_loss_batch, test_accuracy_batch = step(
-                state, batch, int(cfg.num_classes), False, init_rng
-            )
-            test_loss.append(test_loss_batch)
-            test_accuracy.append(test_accuracy_batch)
+        test_loss, test_accuracy = test_epoch(
+            state, test_ds, int(cfg.num_classes), total_test, init_rng
+        )
 
-        test_loss = sum(test_loss) / len(test_loss)
-        test_accuracy = sum(test_accuracy) / len(test_accuracy)
         print(f"{' '*10} Accuracy on Test Set: %.2f" % (test_accuracy * 100))
