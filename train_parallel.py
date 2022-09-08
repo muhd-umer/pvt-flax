@@ -1,20 +1,27 @@
 from typing import Union, Iterable, Any
 import argparse
 import os
-if 'TPU_NAME' in os.environ:
+
+if "TPU_NAME" in os.environ:
     import requests
-    if 'TPU_DRIVER_MODE' not in globals():
-        url = 'http:' + os.environ['TPU_NAME'].split(':')[1] + ':8475/requestversion/tpu_driver_nightly'
+
+    if "TPU_DRIVER_MODE" not in globals():
+        url = (
+            "http:"
+            + os.environ["TPU_NAME"].split(":")[1]
+            + ":8475/requestversion/tpu_driver_nightly"
+        )
         resp = requests.post(url)
         TPU_DRIVER_MODE = 1
 
-
     from jax.config import config
+
     config.FLAGS.jax_xla_backend = "tpu_driver"
-    config.FLAGS.jax_backend_target = os.environ['TPU_NAME']
-    print('Registered TPU:', config.FLAGS.jax_backend_target)
+    config.FLAGS.jax_backend_target = os.environ["TPU_NAME"]
+    print("Registered TPU:", config.FLAGS.jax_backend_target)
 else:
     print('No TPU detected. Can be changed under "Runtime/Change runtime type".')
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
 import os.path as osp
@@ -273,9 +280,6 @@ if __name__ == "__main__":
         args.model_name in model_dict
     ), f"Method {args.model_name} not yet implemented."
 
-    # Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
-    # it unavailable to JAX.
-    tf.config.experimental.set_visible_devices([], "GPU")
     jax_process = str(f"JAX Process: {jax.process_index()} / {jax.process_count()}")
     jax_devices = str(f"JAX Local Devices: {jax.local_devices()}")
     print(colored(jax_process, "magenta"))
