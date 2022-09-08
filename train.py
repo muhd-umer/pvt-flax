@@ -55,7 +55,7 @@ def apply_model(state, inputs, labels, num_classes, dropout_rng=None, trainable=
         loss: Mean loss for the current batch
         accuracy: Mean accuracy for the current batch
     """
-    if dropout_rng:
+    if trainable:
         dropout_rng = random.fold_in(dropout_rng[0], state.step)
 
         def loss_fn(params):
