@@ -105,7 +105,7 @@ def step(state, inputs, labels, num_classes, trainable, rng):
     return loss, accuracy
 
 
-step = jax.pmap(step, axis_name='ensemble', static_broadcasted_argnums=(3, 4))
+step = jax.pmap(step, axis_name="ensemble", static_broadcasted_argnums=(3, 4))
 
 
 def create_train_state(
@@ -179,14 +179,14 @@ def train_and_evaluate(
             colour="cyan",
         ):
             inputs, labels = batch["image"], batch["label"]
-            inputs = jax.jax_utils.replicate(jnp.float32(inputs) / 255.0)
-            labels = jax.jax_utils.replicate(jnp.float32(labels))
+            inputs = flax.jax_utils.replicate(jnp.float32(inputs) / 255.0)
+            labels = flax.jax_utils.replicate(jnp.float32(labels))
 
             state, train_loss_batch, train_accuracy_batch = step(
                 state, inputs, labels, int(num_classes), True, init_rng
             )
-            train_loss.append(jax.jax_utils.unreplicate(train_loss_batch))
-            train_accuracy.append(jax.jax_utils.unreplicate(train_accuracy_batch))
+            train_loss.append(flax.jax_utils.unreplicate(train_loss_batch))
+            train_accuracy.append(flax.jax_utils.unreplicate(train_accuracy_batch))
 
         for batch in tqdm(
             test_ds,
@@ -195,14 +195,14 @@ def train_and_evaluate(
             colour="cyan",
         ):
             inputs, labels = batch["image"], batch["label"]
-            inputs = jax.jax_utils.replicate(jnp.float32(inputs) / 255.0)
-            labels = jax.jax_utils.replicate(jnp.float32(labels))
+            inputs = flax.jax_utils.replicate(jnp.float32(inputs) / 255.0)
+            labels = flax.jax_utils.replicate(jnp.float32(labels))
 
             test_loss_batch, test_accuracy_batch = step(
                 state, inputs, labels, int(num_classes), False, init_rng
             )
-            test_loss.append(jax.jax_utils.unreplicate(test_loss_batch))
-            test_accuracy.append(jax.jax_utils.unreplicate(test_accuracy_batch))
+            test_loss.append(flax.jax_utils.unreplicate(test_loss_batch))
+            test_accuracy.append(flax.jax_utils.unreplicate(test_accuracy_batch))
 
         train_loss = sum(train_loss) / len(train_loss)
         train_accuracy = sum(train_accuracy) / len(train_accuracy)
