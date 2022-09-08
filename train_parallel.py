@@ -273,9 +273,6 @@ if __name__ == "__main__":
         args.model_name in model_dict
     ), f"Method {args.model_name} not yet implemented."
 
-    # Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
-    # it unavailable to JAX.
-    tf.config.experimental.set_visible_devices([], "GPU")
     jax_process = str(f"JAX Process: {jax.process_index()} / {jax.process_count()}")
     jax_devices = str(f"JAX Local Devices: {jax.local_devices()}")
     print(colored(jax_process, "magenta"))
