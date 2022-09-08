@@ -125,10 +125,6 @@ step = jax.pmap(step, axis_name="ensemble", static_broadcasted_argnums=(3, 4))
 def create_train_state(
     params,
     model,
-    warmup_epochs,
-    num_epochs,
-    base_lr,
-    steps,
 ):
     """
     Creates initial `TrainState`. For more information
@@ -136,8 +132,7 @@ def create_train_state(
     https://flax.readthedocs.io/en/latest/api_reference/flax.training.html#train-state
     """
 
-    schedule = learning_rate_schedule(warmup_epochs, num_epochs, base_lr, steps)
-    tx = optax.adamw(learning_rate=schedule)
+    tx = optax.adamw(learning_rate=3.5e-4)
     state = train_state.TrainState.create(
         apply_fn=model.apply,
         params=params,
@@ -148,7 +143,7 @@ def create_train_state(
 
 
 create_train_state = jax.pmap(
-    create_train_state, static_broadcasted_argnums=(1, 2, 3, 4, 5))
+    create_train_state, static_broadcasted_argnums=(1,))
 
 
 def train_and_evaluate(
@@ -322,12 +317,8 @@ if __name__ == "__main__":
 
     if not args.eval_only:
         state = create_train_state(
-            model=model,
             params=params,
-            warmup_epochs=cfg.warmup_epochs,
-            num_epochs=cfg.num_epochs,
-            base_lr=base_learning_rate,
-            steps=steps_per_epoch,
+            model=model,
         )
 
         train_and_evaluate(
@@ -347,12 +338,8 @@ if __name__ == "__main__":
         rng, init_rng = random.split(random.PRNGKey(0))
 
         state = create_train_state(
-            model=model,
             params=params,
-            warmup_epochs=cfg.warmup_epochs,
-            num_epochs=cfg.num_epochs,
-            base_lr=base_learning_rate,
-            steps=steps_per_epoch,
+            model=model,
         )
 
         named_tuple = time.localtime()
