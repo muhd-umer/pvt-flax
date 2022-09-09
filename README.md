@@ -12,7 +12,7 @@ pip install -r requirements.txt
 *Note: Flax is not dependent on TensorFlow itself, however, we make use of methods that take advantage of `tf.io.gfile`* As such, we only install `tensorflow-cpu`. Same is the case with PyTorch, we only install it in order to use their `torch.data.DataLoader`.
 
 ## Run
-To get started, clone this repo and install the dependencies.<br/>
+To get started, clone this repo and install the required dependencies.<br/>
 
 ### Datasets
 - **TensorFlow Datasets** - Refer to [TensorFlow Dataset Image Classification Catalog](https://www.tensorflow.org/datasets/catalog/overview#image_classification) and accordingly modify the following keys in `config/default.py`.
