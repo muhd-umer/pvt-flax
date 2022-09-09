@@ -29,13 +29,13 @@ config.split_keys = ["train", "test"]
 - Configure the **{key: value pairs}** in the config file present at `config/default.py`.<br/>
 - Execute train.py with path to checkpoint and --eval-only argument. Example usage:
 ```python
-python run.py --model-name "PVT_V2_B0" --work-dir "output/"
+python train.py --model-name "PVT_V2_B0" --work-dir "output/"
 ```
 
 ### Evaluation
 - Execute train.py with appropriate arguments. Example usage:
 ```python
-python run.py --model-name "PVT_V2_B0" \
+python train.py --model-name "PVT_V2_B0" \
               --eval-only \
               --checkpoint_dir "output/"
 ```
