@@ -36,8 +36,8 @@ python train.py --model-name "PVT_V2_B0" --work-dir "output/"
 - Execute train.py with appropriate arguments. Example usage:
 ```python
 python train.py --model-name "PVT_V2_B0" \
-              --eval-only \
-              --checkpoint_dir "output/"
+                --eval-only \
+                --checkpoint_dir "output/"
 ```
 ## To do
 - [ ] Convert ImageNet pretrained PyTorch weights (.pth) to Flax weights
