@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import flax.linen as nn
 from typing import Union, Iterable
+from termcolor import colored
 from .helpers import to_2tuple
 
 
@@ -9,9 +10,10 @@ class AdaptiveAveragePool2D(nn.Module):
 
     @nn.compact
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-        assert (
-            x.ndim > 2 and x.ndim < 5
-        ), f"Expected input to have 3 (or 4 with batch) but recieved {x.ndim} dims."
+        assert x.ndim > 2 and x.ndim < 5, colored(
+            f"Expected input to have 3 (or 4 with batch) but recieved {x.ndim} dims.",
+            "red",
+        )
         if x.ndim == 4:
             input_size = x.shape[1], x.shape[2]
         else:

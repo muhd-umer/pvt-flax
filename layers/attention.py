@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import flax.linen as nn
 from typing import List, Optional
+from termcolor import colored
 from .pool import AdaptiveAveragePool2D
 
 
@@ -17,9 +18,10 @@ class Attention(nn.Module):
     @nn.compact
     def __call__(self, x, feat_size=List[int], trainable=None):
         trainable = nn.merge_param("trainable", self.trainable, trainable)
-        assert (
-            self.dim % self.num_heads == 0
-        ), f"Input dim {self.dim} should be dividable by num_heads {self.num_heads}."
+        assert self.dim % self.num_heads == 0, colored(
+            f"Input dim {self.dim} should be divisible by num_heads {self.num_heads}.",
+            "red",
+        )
         head_dim = self.dim // self.num_heads
         scale = head_dim**-0.5
 
