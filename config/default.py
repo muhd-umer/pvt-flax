@@ -14,8 +14,10 @@ def get_config():
     config = ml_collections.ConfigDict()
 
     config.learning_rate = 3.5e-4
-    config.batch_size = 128
-
+    config.batch_size = 32
+    config.warmup_epochs = 2
+    config.momentum = 0.9
+    
     config.num_epochs = 10
     config.log_every_steps = 100
 
@@ -25,9 +27,9 @@ def get_config():
     config.steps_per_eval = -1
 
     # configure input dataset keys
-    config.dataset_name = "cifar10"
-    config.data_shape = [32, 32, 3]
+    config.dataset_name = "imagenette"
+    config.data_shape = [224, 224]
     config.num_classes = 10
-    config.split_keys = ["train", "test"]
+    config.split_keys = ["train", "validation"]
 
     return config

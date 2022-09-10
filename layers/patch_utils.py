@@ -1,4 +1,5 @@
 import flax.linen as nn
+from termcolor import colored
 from .helpers import to_2tuple
 
 
@@ -10,9 +11,9 @@ class OverlapPatchEmbed(nn.Module):
     @nn.compact
     def __call__(self, x):
         patch_size = to_2tuple(self.patch_size)
-        assert (
-            max(patch_size) > self.strides
-        ), "Patch size should be larger than stride."
+        assert max(patch_size) > self.strides, colored(
+            "Patch size should be larger than stride.", "red"
+        )
         norm = nn.LayerNorm()
 
         x = nn.Conv(

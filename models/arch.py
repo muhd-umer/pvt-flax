@@ -23,10 +23,9 @@ https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/pvt_v2
 
 
 from functools import partial
-import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import random
+from termcolor import colored
 import flax.linen as nn
 from typing import Union, Iterable, Callable, List, Optional
 from layers import (
@@ -36,7 +35,6 @@ from layers import (
     OverlapPatchEmbed,
     MLP_with_DepthWiseConv,
 )
-import os.path as osp
 
 
 class Block(nn.Module):
@@ -116,9 +114,9 @@ class PyramidVisionTransformerStage(nn.Module):
             x, feat_size = downsample(x)
 
         else:
-            assert (
-                dim == self.dim_out
-            ), "With downsample=False, input dims should be equal to dim_out."
+            assert dim == self.dim_out, colored(
+                "With downsample=False, input dims should be equal to dim_out.", "red"
+            )
 
         for i in range(self.depth):
             x = Block(
@@ -168,18 +166,18 @@ class PyramidVisionTransformerV2(nn.Module):
     @nn.compact
     def __call__(self, x, trainable=None):
         trainable = nn.merge_param("trainable", self.trainable, trainable)
-        assert not (
-            self.attach_head and self.num_classes == 0
-        ), f"If attach_head=True, num_classes should be greater than zero."
+        assert not (self.attach_head and self.num_classes == 0), colored(
+            f"If attach_head=True, num_classes should be greater than zero.", "red"
+        )
         num_stages = len(self.depths)
         mlp_ratios = to_ntuple(num_stages)(self.mlp_ratios)
         num_heads = to_ntuple(num_stages)(self.num_heads)
         sr_ratios = to_ntuple(num_stages)(self.sr_ratios)
         assert (len(self.embed_dims)) == num_stages
 
-        # assert (
-        #     x.shape[-1] == 3
-        # ), f"Expected an RGB image with 3 channels but got {x.shape[-1]} channels instead."
+        assert (
+            x.shape[-1] == 3
+        ), colored(f"Expected an RGB image with 3 channels but got {x.shape[-1]} channels instead.", "red")
         patch_embed = OverlapPatchEmbed(
             patch_size=7, strides=4, embed_dim=self.embed_dims[0]
         )
