@@ -27,8 +27,8 @@ def get_config():
     config.steps_per_eval = -1
 
     # configure input dataset keys
-    config.dataset_name = "cifar10"
-    config.data_shape = [32, 32]
+    config.dataset_name = "imagenette"
+    config.data_shape = [224, 224]
     config.num_classes = 10
 
     return config
