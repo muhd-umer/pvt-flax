@@ -14,7 +14,7 @@ def get_config():
     config = ml_collections.ConfigDict()
 
     config.learning_rate = 3.5e-4
-    config.batch_size = 128
+    config.batch_size = 32
     config.warmup_epochs = 2
     config.momentum = 0.9
     
@@ -30,5 +30,6 @@ def get_config():
     config.dataset_name = "imagenette"
     config.data_shape = [224, 224]
     config.num_classes = 10
+    config.split_keys = ["train", "validation"]
 
     return config

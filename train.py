@@ -145,10 +145,10 @@ def main():
     )
 
     train_it, train_examples = create_iterator(
-        cfg.dataset_name, cfg.batch_size, cfg.data_shape, "train"
+        cfg.dataset_name, cfg.batch_size, cfg.data_shape, cfg.split_keys[0]
     )
     test_it, test_examples = create_iterator(
-        cfg.dataset_name, cfg.batch_size, cfg.data_shape, "test"
+        cfg.dataset_name, cfg.batch_size, cfg.data_shape, cfg.split_keys[1]
     )
 
     train_steps = train_examples // cfg.batch_size
