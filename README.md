@@ -39,9 +39,9 @@ python train.py --model-name "PVT_V2_B0" \
                 --eval-only \
                 --checkpoint_dir "output/"
 ```
-## To do
+## Current Issues / To do
 - [ ] Convert ImageNet pretrained PyTorch weights (.pth) to Flax weights
-- [ ] Fix slow compiling for distributed training on TPUs
+- [ ] Fix distributed trianing on TPUs
 
 *Note: Since my undergrad studies are resuming after summer break, I may or may not be able to find time to complete the above tasks. 
 If you want to implement the aforelisted tasks, I'll be more than glad to merge your pull request. ❤️*
