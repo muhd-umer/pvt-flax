@@ -128,7 +128,6 @@ def main():
         assert osp.exists(args.checkpoint_dir), colored(
             f"Checkpoint directory does not exist. Recheck input arguments.", "red"
         )
-        state = restore_checkpoint(state, checkpoint_dir=args.checkpoint_dir)
 
     # Hide any GPUs from TensorFlow. Otherwise TF might reserve memory and make
     # it unavailable to JAX.
@@ -244,6 +243,8 @@ def main():
         ),
     )
     del init_rng
+    if args.checkpoint_dir:
+        state = restore_checkpoint(state, checkpoint_dir=args.checkpoint_dir)
     state = jax_utils.replicate(state)
 
     if not args.eval_only:
@@ -265,11 +266,14 @@ def main():
             """
             Train epoch
             """
-            for batch in tqdm(
-                train_it,
-                total=train_steps,
-                desc=colored(f"{' '*10} Training", "magenta"),
-                colour="cyan",
+            for _, batch in zip(
+                range(train_steps),
+                tqdm(
+                    train_it,
+                    total=train_steps,
+                    desc=colored(f"{' '*10} Training", "magenta"),
+                    colour="cyan",
+                ),
             ):
                 inputs, labels = batch["image"], batch["label"]
 
@@ -280,11 +284,14 @@ def main():
             """
             Test epoch
             """
-            for batch in tqdm(
-                test_it,
-                total=test_steps,
-                desc=colored(f"{' '*10} Validating", "magenta"),
-                colour="cyan",
+            for _, batch in zip(
+                range(test_steps),
+                tqdm(
+                    test_it,
+                    total=test_steps,
+                    desc=colored(f"{' '*10} Training", "magenta"),
+                    colour="cyan",
+                ),
             ):
                 inputs, labels = batch["image"], batch["label"]
 

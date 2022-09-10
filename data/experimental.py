@@ -45,6 +45,7 @@ def get_jnp_dataset(name, batch_size, img_shape, split):
         return {"image": image, "label": example["label"]}
 
     dataset_builder = tfds.builder(name)
+    dataset_builder.download_and_prepare()
     num_examples = dataset_builder.info.splits[split].num_examples
     split_size = num_examples // jax.process_count()
     start = jax.process_index() * split_size
@@ -54,7 +55,7 @@ def get_jnp_dataset(name, batch_size, img_shape, split):
     dataset = dataset.map(
         decode_example, num_parallel_calls=tf.data.experimental.AUTOTUNE
     )
-    dataset = dataset.cache().batch(batch_size, drop_remainder=True)
+    dataset = dataset.cache().repeat().batch(batch_size, drop_remainder=True)
     dataset.prefetch(10)
 
     return dataset, num_examples
