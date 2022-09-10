@@ -17,10 +17,10 @@ To get started, clone this repo and install the required dependencies.<br/>
 ### Datasets
 - **TensorFlow Datasets** - Refer to [TensorFlow Dataset Image Classification Catalog](https://www.tensorflow.org/datasets/catalog/overview#image_classification) and accordingly modify the following keys in `config/default.py`.
 ```ruby
-config.dataset_name = "cifar10"
-config.data_shape = [32, 32, 3]
+config.dataset_name = "imagenette"
+config.data_shape = [224, 224]
 config.num_classes = 10
-config.split_keys = ["train", "test"]
+config.split_keys = ["train", "validation"]
 ```
 - **PyTorch DataLoader** - To load datasets in PyTorch style, use the wrapper for torch.DataLoader in `data/numpyloader.py` -> `NumpyLoader` along with a custom collate function.
 - **Custom Dataset** - Currently, this repo does not support out of the box support for custom image classification dataset. However, you can manipulate `NumpyLoader` to accomplish this.
