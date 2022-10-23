@@ -1,8 +1,8 @@
-ml-collections==0.1.1
-optax==0.1.3
+ml-collections
+optax
 tensorflow-cpu
 torch
-clu==0.0.7
-tensorstore==0.1.23
+clu
+tensorstore
 termcolor
-tqdm==4.64.1
+tqdm
