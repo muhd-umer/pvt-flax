@@ -16,7 +16,7 @@ To get started, clone this repo and install the required dependencies.<br/>
 
 ### Datasets
 - **TensorFlow Datasets** - Refer to [TensorFlow Dataset Image Classification Catalog](https://www.tensorflow.org/datasets/catalog/overview#image_classification) and accordingly modify the following keys in `config/default.py`.
-```ruby
+```python
 config.dataset_name = "imagenette"
 config.data_shape = [224, 224]
 config.num_classes = 10
