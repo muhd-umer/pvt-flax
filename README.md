@@ -6,9 +6,11 @@ All credits to the authors **Wenhai Wang, Enze Xie, Xiang Li, Deng-Ping Fan, Kai
 *It is recommended to create a new virtual environment so that updates/downgrades of packages do not break other projects.*<br/>
 - Environment characteristics:<br/>`python = 3.9.12` `cuda = 11.3` `jax = 0.3.16` `flax = 0.6.0`
 - Follow the instructions on [official JAX/Flax documentation](https://flax.readthedocs.io/en/latest/installation.html) for installing their packages.
-```
-pip install -r requirements.txt
-```
+
+  ```
+  pip install -r requirements.txt
+  ```
+
 *Note: Flax is not dependent on TensorFlow itself, however, we make use of methods that take advantage of `tf.io.gfile`* As such, we only install `tensorflow-cpu`. Same is the case with PyTorch, we only install it in order to use their `torch.data.DataLoader`.
 
 ## Run
@@ -16,29 +18,33 @@ To get started, clone this repo and install the required dependencies.<br/>
 
 ### Datasets
 - **TensorFlow Datasets** - Refer to [TensorFlow Dataset Image Classification Catalog](https://www.tensorflow.org/datasets/catalog/overview#image_classification) and accordingly modify the following keys in `config/default.py`.
-```python
-config.dataset_name = "imagenette"
-config.data_shape = [224, 224]
-config.num_classes = 10
-config.split_keys = ["train", "validation"]
-```
+
+  ```python
+  config.dataset_name = "imagenette"
+  config.data_shape = [224, 224]
+  config.num_classes = 10
+  config.split_keys = ["train", "validation"]
+  ```
+
 - **PyTorch DataLoader** - To load datasets in PyTorch style, use the wrapper for torch.DataLoader in `data/numpyloader.py` -> `NumpyLoader` along with a custom collate function.
 - **Custom Dataset** - Currently, this repo does not support out of the box support for custom image classification dataset. However, you can manipulate `NumpyLoader` to accomplish this.
 
 ### Training
 - Configure the **{key: value pairs}** in the config file present at `config/default.py`.<br/>
 - Execute train.py with path to checkpoint and --eval-only argument. Example usage:
-```python
-python train.py --model-name "PVT_V2_B0" --work-dir "output/"
-```
+
+  ```python
+  python train.py --model-name "PVT_V2_B0" --work-dir "output/"
+  ```
 
 ### Evaluation
 - Execute train.py with appropriate arguments. Example usage:
-```python
-python train.py --model-name "PVT_V2_B0" \
-                --eval-only \
-                --checkpoint_dir "output/"
-```
+
+  ```python
+  python train.py --model-name "PVT_V2_B0" \
+                  --eval-only \
+                  --checkpoint_dir "output/"
+  ```
 ## To do
 - [ ] Convert ImageNet pretrained PyTorch weights (.pth) to Flax weights
 
@@ -50,25 +56,28 @@ We acknowledge the excellent implementation of PVT in [MMDetection](https://gith
 
 ## Citing PVT
 - **PVT v1**
-```
-@inproceedings{wang2021pyramid,
-  title={Pyramid vision transformer: A versatile backbone for dense prediction without convolutions},
-  author={Wang, Wenhai and Xie, Enze and Li, Xiang and Fan, Deng-Ping and Song, Kaitao and Liang, Ding and Lu, Tong and Luo, Ping and Shao, Ling},
-  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
-  pages={568--578},
-  year={2021}
-}
-```
+
+  ```
+  @inproceedings{wang2021pyramid,
+    title={Pyramid vision transformer: A versatile backbone for dense prediction without convolutions},
+    author={Wang, Wenhai and Xie, Enze and Li, Xiang and Fan, Deng-Ping and Song, Kaitao and Liang, Ding and Lu, Tong and Luo, Ping and Shao, Ling},
+    booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
+    pages={568--578},
+    year={2021}
+  }
+  ```
+
 - **PVT v2**
-```
-@article{wang2021pvtv2,
-  title={Pvtv2: Improved baselines with pyramid vision transformer},
-  author={Wang, Wenhai and Xie, Enze and Li, Xiang and Fan, Deng-Ping and Song, Kaitao and Liang, Ding and Lu, Tong and Luo, Ping and Shao, Ling},
-  journal={Computational Visual Media},
-  volume={8},
-  number={3},
-  pages={1--10},
-  year={2022},
-  publisher={Springer}
-}
-```
+
+  ```
+  @article{wang2021pvtv2,
+    title={Pvtv2: Improved baselines with pyramid vision transformer},
+    author={Wang, Wenhai and Xie, Enze and Li, Xiang and Fan, Deng-Ping and Song, Kaitao and Liang, Ding and Lu, Tong and Luo, Ping and Shao, Ling},
+    journal={Computational Visual Media},
+    volume={8},
+    number={3},
+    pages={1--10},
+    year={2022},
+    publisher={Springer}
+  }
+  ```
