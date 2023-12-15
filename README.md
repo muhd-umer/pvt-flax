@@ -1,4 +1,8 @@
-# Pyramid Vision Transformer <a href="https://arxiv.org/abs/2106.13797"><img src="https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg" ></a></h1> 
+# Pyramid Vision Transformer
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![JAX](https://img.shields.io/badge/JAX-0.3.16-orange.svg)](https://github.com/google/jax)
+<a href="https://arxiv.org/abs/2106.13797"><img src="https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg" ></a></h1> 
+
 This repo contains the **unofficial** JAX/Flax implementation of <a href="https://arxiv.org/abs/2106.13797">PVT v2: Improved Baselines with Pyramid Vision Transformer</a>. <br/>
 All credits to the authors **Wenhai Wang, Enze Xie, Xiang Li, Deng-Ping Fan, Kaitao Song, Ding Liang, Tong Lu, Ping Luo, Ling Shao** for their wonderful work.
 
